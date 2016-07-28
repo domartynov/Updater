@@ -68,7 +68,7 @@ name-version-channel.json
     }
   ],
   "launch": {
-    "target": "${pkgs.app1}\\bin\app1.exe",
+    "target": "${pkgs.app1}\\bin\\app1.exe",
     "args": "--logo"
   }
 }
