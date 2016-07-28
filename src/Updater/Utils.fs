@@ -81,6 +81,9 @@ module Json =
     type ResolvingJTokenReader(root, variables:Map<string, string>) = 
         inherit JTokenReader(root)
 
+        let resolveEnvVar (str : string) = 
+            if str.Contains("%") then Environment.ExpandEnvironmentVariables(str) else str
+
         let resolver (m:Match) =
             let value = m.Value.Substring(2, m.Value.Length - 3)
             match Map.tryFind value variables with
@@ -97,7 +100,7 @@ module Json =
                 let token = this.CurrentToken
                 if token.Type = JTokenType.String then
                     let value = string token
-                    let value' = Regex.Replace(value, "\$\{[^}]+}", resolver)
+                    let value' = Regex.Replace(value, "\$\{[^}]+}", resolver) |> resolveEnvVar
                     if value' <> value then
                         base.SetToken(JsonToken.String, value')
                 true

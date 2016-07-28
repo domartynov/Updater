@@ -1,7 +1,9 @@
 ﻿namespace Updater.Tests
 
+open System
 open Xunit
 open FsUnit.Xunit
+open Updater
 open Updater.Json
 open Updater.Model
 
@@ -20,7 +22,10 @@ type JsonTests() =
     [<Fact>]
     let ``record serialize``() = 
         serialize { name = "John"; active = true }
-        |> should equal "{\"name\":\"John\",\"active\":true}"
+        |> should equal """{
+  "name": "John",
+  "active": true
+}"""
     
     [<Fact>]
     let ``record derialize``() = 
@@ -33,10 +38,23 @@ type JsonTests() =
     [<Fact>]
     let ``serialize option and list``() = 
         serialize { copy = Some(true); names = [ "a"; "b"; "c" ] }
-        |> should equal "{\"copy\":true,\"names\":[\"a\",\"b\",\"c\"]}"
+        |> should equal """{
+  "copy": true,
+  "names": [
+    "a",
+    "b",
+    "c"
+  ]
+}"""
         
         serialize { copy = None; names = [ "a"; "b"; "c" ] }
-        |> should equal "{\"names\":[\"a\",\"b\",\"c\"]}"
+        |> should equal """{
+  "names": [
+    "a",
+    "b",
+    "c"
+  ]
+}"""
     
     [<Fact>]
     let ``deserialize option and list``() = 
@@ -49,10 +67,17 @@ type JsonTests() =
     [<Fact>]
     let ``serialize map``() = 
         serialize { layout = Map.ofList [ "a", "1"; "b", "2" ] }
-        |> should equal "{\"layout\":{\"a\":\"1\",\"b\":\"2\"}}"
-        
+        |> should equal """{
+  "layout": {
+    "a": "1",
+    "b": "2"
+  }
+}"""
+
         serialize { layout = Map.empty } 
-        |> should equal "{\"layout\":{}}"
+        |> should equal """{
+  "layout": {}
+}"""
     
     [<Fact>]
     let ``deserialize map``() = 
@@ -69,6 +94,11 @@ type JsonTests() =
 
         let result = deserialize<Launch> vars """{"target":"${dir}\\${filename}"}"""
         result |> should equal { target = "\\a\\test.txt"; args = None; workDir = None } 
+
+    [<Fact>]
+    let ``deserialize resolve env vars``() =
+        let result = deserialize<Launch> Map.empty """{"target":"%windir%\\system32\\notepad.exe"}"""
+        result |> should equal { target = (Environment.ExpandEnvironmentVariables "%windir%") @@ "system32\\notepad.exe"; args = None; workDir = None } 
 
     [<Fact>]
     let ``deserialize app manifest``() = 
