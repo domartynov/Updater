@@ -26,8 +26,7 @@
 
 ```json
 {
-    "appName": "app1",
-    "appDir": "%USERPROFILE%\%{appName}",
+    "appDir": "%USERPROFILE%\\app1",
     "repoUrl": "http://server:8080/pkgs/",
     "versionUrl": "app1-release.version.txt",
     "keepVersions": 2 
