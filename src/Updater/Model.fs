@@ -31,7 +31,8 @@ and Shortcut =
       target : string 
       args: string option
       workDir: string option
-      parentDir: string option }
+      parentDir: string option
+      icon: string option }
 and Launch = 
     { target : string 
       args : string option

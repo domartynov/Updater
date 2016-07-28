@@ -86,7 +86,6 @@ type JsonTests() =
         
         deserialize<Foo3> Map.empty "{\"layout\":{}}" 
         |> should equal { layout = Map.empty }
-    
 
     [<Fact>]
     let ``deserialize resolve variables``() =
@@ -94,6 +93,18 @@ type JsonTests() =
 
         let result = deserialize<Launch> vars """{"target":"${dir}\\${filename}"}"""
         result |> should equal { target = "\\a\\test.txt"; args = None; workDir = None } 
+
+    [<Fact>]
+    let ``deserialize recurvise resolve variables``() =
+        let vars = Map.ofList ["filename", "test.txt"; "dir", "\\a"]
+
+        let result = deserialize<Launch> vars """
+        {
+          "workDir":"${target}\\..",
+          "target":"${dir}\\${filename}"
+        }
+        """
+        result |> should equal { target = "\\a\\test.txt"; args = None; workDir = Some "\\a\\test.txt\\.." } 
 
     [<Fact>]
     let ``deserialize resolve env vars``() =
@@ -127,7 +138,8 @@ type JsonTests() =
   "shortcuts": [
     {
       "name": "${app.title}-${app.version}",
-      "target": "${pkgs.updater}\\updater.exe ${fileName}"
+      "target": "${pkgs.updater}\\updater.exe ${fileName}",
+      "icon": "${launch.target}"
     }
   ],
   "launch": {
@@ -157,7 +169,8 @@ type JsonTests() =
                                   target = "updater-1\\updater.exe qzpc-test.json" 
                                   args = None
                                   workDir = None
-                                  parentDir = None } ]
+                                  parentDir = None
+                                  icon = Some "qzpc-0.1\\bin\\pycharm64.exe" } ]
                           launch = 
                               { target = "qzpc-0.1\\bin\\pycharm64.exe"
                                 args = None

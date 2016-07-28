@@ -70,7 +70,8 @@ type UpdaterTests() =
                           target = "${pkgs.updater}\\updater.exe"
                           args = Some "${fileName}"
                           workDir = None
-                          parentDir = (userDir @@ "desktop") |> makeDir |> Some } ]
+                          parentDir = (userDir @@ "desktop") |> makeDir |> Some 
+                          icon = None } ]
           launch = { target = sprintf "${pkgs.%s}\\xcopy.exe" appName
                      args = Some "version.txt result.txt* /Y"
                      workDir = None } }
