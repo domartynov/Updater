@@ -26,8 +26,7 @@
 
 ```json
 {
-    "appName": "app1",
-    "appDir": "%USERPROFILE%\%{appName}",
+    "appDir": "%USERPROFILE%\\app1",
     "repoUrl": "http://server:8080/pkgs/",
     "versionUrl": "app1-release.version.txt",
     "keepVersions": 2 
@@ -69,7 +68,7 @@ name-version-channel.json
     }
   ],
   "launch": {
-    "target": "${pkgs.app1}\\bin\app1.exe",
+    "target": "${pkgs.app1}\\bin\\app1.exe",
     "args": "--logo"
   }
 }
