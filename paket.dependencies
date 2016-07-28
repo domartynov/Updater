@@ -1,0 +1,7 @@
+framework: net452
+source https://nuget.org/api/v2
+
+nuget FAKE
+nuget Newtonsoft.Json
+nuget FsUnit.xUnit
+nuget xunit.runner.visualstudio version_in_path: true
