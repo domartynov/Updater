@@ -79,7 +79,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
         let name = shortcut.name
         let workDir = defaultArg shortcut.workDir (Path.GetDirectoryName target)
         let path = (defaultArg shortcut.parentDir "%USERPROFILE%\\Desktop" |> Environment.ExpandEnvironmentVariables)  @@ name @! ".lnk"
-        let icon = defaultArg shortcut.icon target
+        let icon = config.appDir @@ (defaultArg shortcut.icon shortcut.target)
         createShortcut (path, target, defaultArg shortcut.args "", workDir, name, icon)
 
     member __.Execute(mode,?skipLaunch) =

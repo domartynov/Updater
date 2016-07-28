@@ -71,7 +71,7 @@ type UpdaterTests() =
                           args = Some "${fileName}"
                           workDir = None
                           parentDir = (userDir @@ "desktop") |> makeDir |> Some 
-                          icon = None } ]
+                          icon = Some "${launch.target}" } ]
           launch = { target = sprintf "${pkgs.%s}\\xcopy.exe" appName
                      args = Some "version.txt result.txt* /Y"
                      workDir = None } }
@@ -116,6 +116,13 @@ type UpdaterTests() =
 
         appDir @@ (appName ++ "1") @@ "result.txt" |> File.ReadAllText 
         |> should equal "v1"
+
+        match appDir @@ "app1-1.manifest.json" |> read<Manifest> with
+        | { shortcuts = [ { parentDir = Some parentDir; name = name } ]; launch = { target = target } } -> 
+            let (_, _, _, _, _, icon) = parentDir @@ name @! ".lnk" |> readShortcut
+            icon |> should equal (appDir @@ target + ",0")
+        | _ -> failwith "Unexpected manifest file"
+
 
     [<Fact>]
     let ``launch installed application`` () =
