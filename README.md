@@ -2,11 +2,11 @@
 
 Updater is a simple solution to deploy/update client applications on Windows. 
 
-# Design Note
+# Design Notes
 
 TBD
 
-## AppDir Layout
+## Installation Diretory Layout
 
 ```
 %USERPROFILE%\app1
@@ -30,7 +30,7 @@ TBD
     app1-0.1-release.manifest.json
 ```
 
-# Updater Config
+## Updater Config
 
 ```json
 {
@@ -41,10 +41,10 @@ TBD
 }
 ```
 
-# App File
+## Application Manifest File
 
 ```
-name-version-channel.json
+name-version-channel.manifest.json
 ```
 
 ```json
