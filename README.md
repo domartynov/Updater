@@ -1,4 +1,12 @@
-# AppDir Layout
+# Updater
+
+Updater is a simple solution to deploy/update client applications on Windows. 
+
+# Design Note
+
+TBD
+
+## AppDir Layout
 
 ```
 %USERPROFILE%\app1
