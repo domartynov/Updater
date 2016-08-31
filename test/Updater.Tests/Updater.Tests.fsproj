@@ -69,6 +69,7 @@
     <Compile Include="JsonTests.fs" />
     <Compile Include="UpdaterTests.fs" />
     <Compile Include="RepoClientTests.fs" />
+    <Compile Include="PublishTests.fs" />
     <Content Include="App.config" />
     <None Include="paket.references" />
   </ItemGroup>
@@ -82,6 +83,11 @@
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Numerics" />
+    <ProjectReference Include="..\..\src\Updater.Publish\Updater.Publish.fsproj">
+      <Name>Updater.Publish</Name>
+      <Project>{8da8c34b-14dd-4d32-b26f-821ab9519e66}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\..\src\Updater\Updater.fsproj">
       <Name>Updater</Name>
       <Project>{e3f76372-17bf-4b50-9aea-4a8a8974b150}</Project>

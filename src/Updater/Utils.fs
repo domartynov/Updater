@@ -18,6 +18,7 @@ module Helper =
 
     let save path text = 
         File.WriteAllText(path + "~", text)
+        if File.Exists path then File.Delete path
         File.Move(path + "~", path)
         
 

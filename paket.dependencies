@@ -3,5 +3,6 @@ source https://nuget.org/api/v2
 
 nuget FAKE
 nuget Newtonsoft.Json
+nuget Argu
 nuget FsUnit.xUnit
 nuget xunit.runner.visualstudio version_in_path: true

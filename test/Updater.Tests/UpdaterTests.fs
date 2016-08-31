@@ -1,4 +1,4 @@
-﻿namespace Updater.UpdaterTests
+﻿namespace Updater.Tests
 
 open System
 open System.IO

@@ -1,4 +1,4 @@
-﻿module RepoClientTests
+﻿namespace Updater.Tests
 
 open System
 open System.IO
