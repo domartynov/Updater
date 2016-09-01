@@ -5,14 +5,14 @@ open Updater.Model
 open Updater.Json
 open Updater.Publish.Program
 
-open System
 open System.IO
 open Xunit
+open Xunit.Abstractions
 open FsUnit.Xunit
 
-type PublishTests () =
-    let binDir = binDir ()
-    let testDir = binDir @@ "testTemp\\UpdaterTests" @@ DateTime.Now.ToString("yyMMdd_HHmmss")
+
+type PublishTests (testDirFixture : TestDirFixture) =
+    let testDir = testDirFixture.MakeDir("PublishTests")
     let repoDir = testDir @@ "repo" |> makeDir
     let tempDir = testDir @@ "temp" |> makeDir
 
@@ -69,3 +69,4 @@ type PublishTests () =
         manifest.pkgs |> Map.find "app1" |> should equal "app1-1.1"
         manifest.pkgs |> Map.find "updater" |> should equal "updater-2"
 
+    interface IClassFixture<TestDirFixture>

@@ -58,7 +58,7 @@ type HttpRepoFixture () =
     interface IDisposable with
         member __.Dispose() = stop ()
 
-
+[<Trait("Category", "Integration")>]
 type HttpRepoClientTests (server : HttpRepoFixture) =
     let client = repoClient server.RepoUrl "app1.version.json"
 

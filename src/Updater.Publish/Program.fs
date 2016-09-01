@@ -7,6 +7,7 @@ open Updater
 open Updater.Json
 open Updater.Model
 
+
 type CliArgs =
     | Repo of string option
     | [<CliPrefix(CliPrefix.None)>] Publish of ParseResults<PublishArgs>
@@ -34,6 +35,7 @@ with
         member this.Usage = 
             match this with
             | Versions _ -> "Clean up all manifests and packages older than specified number of versions"
+
 
 
 let locateRepo repoUri =
@@ -87,9 +89,7 @@ let publish repo versionPath packages =
 
     let newVersion = 
         let seed = pkgs |> Map.find manifest.layout.main
-        let toVersion = function
-            | 0 -> seed
-            | i -> sprintf "%s-%d" seed i
+        let toVersion = function 0 -> seed | i -> sprintf "%s-%d" seed i
         Seq.initInfinite toVersion
         |> Seq.filter (toManifestPath >> File.Exists >> not)
         |> Seq.head
@@ -103,9 +103,9 @@ let publish repo versionPath packages =
 
 let execute repo = function
     | Publish args ->
-        let version = args.TryGetResult <@ Name @> |> locateVersion repo
+        let versionPath = args.TryGetResult <@ Name @> |> locateVersion repo
         let packages = args.PostProcessResult (<@ Files @>, List.map locatePackage)
-        publish repo version packages
+        publish repo versionPath packages
     | Cleanup args ->
         failwith "Not implemented: Cleanup"
     | x -> failwithf "Not supported: %A" x

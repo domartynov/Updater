@@ -2,12 +2,28 @@ FRAMEWORK: NET452
 NUGET
   remote: https://www.nuget.org/api/v2
     Argu (3.2)
-    FAKE (4.32)
+    FSharp.Core (4.0.0.1) - redirects: force
+    Newtonsoft.Json (9.0.1) - redirects: force
+
+GROUP Build
+FRAMEWORK: NET452
+NUGET
+  remote: https://www.nuget.org/api/v2
+    FAKE (4.39)
+    ILRepack (2.0.11)
+    Octokit (0.21.1)
+GITHUB
+  remote: fsharp/FAKE
+    modules/Octokit/Octokit.fsx (e5870cb85f9b500246e02c6daa94e5131dad7a6e)
+      Octokit (>= 0.20)
+GROUP Test
+FRAMEWORK: NET452
+NUGET
+  remote: https://www.nuget.org/api/v2
     FSharp.Core (4.0.0.1)
     FsUnit.xUnit (1.4.1)
       FSharp.Core (>= 3.1.2.5)
       xunit (2.1)
-    Newtonsoft.Json (9.0.1)
     xunit (2.1)
       xunit.assert (2.1)
       xunit.core (2.1)
@@ -20,4 +36,5 @@ NUGET
       xunit.abstractions (2.0)
     xunit.extensibility.execution (2.1)
       xunit.extensibility.core (2.1)
+    xunit.runner.console (2.1)
     xunit.runner.visualstudio (2.1.0) - version_in_path: true

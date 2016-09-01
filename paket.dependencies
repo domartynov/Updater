@@ -1,8 +1,23 @@
-framework: net452
 source https://nuget.org/api/v2
+framework: net452
 
-nuget FAKE
-nuget Newtonsoft.Json
+nuget Newtonsoft.Json redirects: force
 nuget Argu
-nuget FsUnit.xUnit
-nuget xunit.runner.visualstudio version_in_path: true
+nuget FSharp.Core redirects: force
+
+group Build
+	source https://nuget.org/api/v2	
+	framework: net452
+
+	nuget FAKE	
+	nuget ILRepack
+
+	github fsharp/FAKE modules/Octokit/Octokit.fsx
+
+group Test
+	source https://nuget.org/api/v2	
+	framework: net452
+
+	nuget FsUnit.xUnit
+	nuget xunit.runner.console
+	nuget xunit.runner.visualstudio version_in_path: true

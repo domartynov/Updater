@@ -20,9 +20,9 @@ type EntryFile =
 type EntryName = string
 type PackageEntry = EntryFile * EntryName
 
-type UpdaterTests() =
-    let binDir = binDir ()
-    let testDir = binDir @@ "testTemp\\UpdaterTests" @@ DateTime.Now.ToString("yyMMdd_HHmmss")
+type UpdaterTests (testDirFixture : TestDirFixture) =
+    let binDir = binDir()
+    let testDir = testDirFixture.MakeDir("UpdaterTests")
     let repoDir = testDir @@ "repo"
     let appName = "app1"
     let appDir = testDir @@ appName
@@ -148,3 +148,6 @@ type UpdaterTests() =
             targetPath @@ "..\\version.txt" |> File.ReadAllText
             |> should equal "u2"
         | _ -> failwith "Unexpected manifest file"
+    
+    interface IClassFixture<TestDirFixture>
+
