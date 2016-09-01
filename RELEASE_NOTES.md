@@ -1,3 +1,6 @@
+#### 0.1.3 - 09/01/2016
+* FIXED: app.version is not updated
+
 #### 0.1.2 - 09/01/2016
 * FIXED: package name with dash symbols
 * FIXED: replaces variable expressions

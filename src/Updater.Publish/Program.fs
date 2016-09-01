@@ -74,7 +74,7 @@ let publish repo versionPath packages =
         File.Move(tmp, repo @@ filename)
         Path.GetFileNameWithoutExtension filename
 
-    let verDelimRegex = Regex(@"-\d+") 
+    let verDelimRegex = Regex(@"-(?=\d)") 
     let parsePackagePath (path:string) =
         path |> Path.GetFileNameWithoutExtension |> verDelimRegex.Split |> Array.head, path
         
@@ -93,7 +93,9 @@ let publish repo versionPath packages =
         |> Seq.filter (toManifestPath >> File.Exists >> not)
         |> Seq.head
 
-    { manifest with pkgs = pkgs}
+    let appVersion = newVersion |> verDelimRegex.Split |> Seq.skip 1 |> Seq.tryLast
+    { manifest with pkgs = pkgs
+                    app = { manifest.app with version = defaultArg appVersion ""} }
     |> serialize
     |> save (newVersion |> toManifestPath)
 

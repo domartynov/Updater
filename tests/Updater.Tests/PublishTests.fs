@@ -5,7 +5,6 @@ open Updater.Model
 open Updater.Json
 open Updater.Publish.Program
 
-open System.IO
 open Xunit
 open FsUnit.Xunit
 
@@ -47,6 +46,7 @@ type PublishTests (testDirFixture : TestDirFixture) =
         let manifest = loadManifest "app1-1.1.manifest.json"
         manifest.pkgs |> Map.find "app1" |> should equal "app1-1.1"
         manifest.launch.target |> should haveSubstring "${pkgs.app1}"
+        manifest.app.version |> should equal "1.1"
 
     [<Fact>]
     let ``publish secondary package`` () =
