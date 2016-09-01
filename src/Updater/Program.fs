@@ -7,7 +7,7 @@ open Updater.RepoClient
 open Updater.Json
     
 let readConfig () =
-    File.ReadAllText ((binDir ()) @@ "config.json") |> deserialize<Config> Map.empty
+    (binDir ()) @@ "config.json" |> read<Config>
 
 [<EntryPoint>]
 let main argv = 

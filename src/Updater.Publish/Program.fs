@@ -2,6 +2,7 @@
 
 open System
 open System.IO
+open System.Text.RegularExpressions
 open Argu
 open Updater
 open Updater.Json
@@ -37,7 +38,6 @@ with
             | Versions _ -> "Clean up all manifests and packages older than specified number of versions"
 
 
-
 let locateRepo repoUri =
     Uri(defaultArg repoUri (Environment.GetEnvironmentVariable "UPDATER_REPO")).LocalPath
 
@@ -64,8 +64,8 @@ let publish repo versionPath packages =
     let toManifestPath version =
         repo @@ version @! ".manifest.json"
     
-    let version = (File.ReadAllText versionPath).Trim()
-    let manifest = version |> toManifestPath |> read<Manifest>
+    let version = (versionPath |> readText).Trim()
+    let manifest = version |> toManifestPath |> readText |> fromJson<Manifest>
 
     let copyPackage path = 
         let filename = Path.GetFileName path
@@ -74,11 +74,10 @@ let publish repo versionPath packages =
         File.Move(tmp, repo @@ filename)
         Path.GetFileNameWithoutExtension filename
 
+    let verDelimRegex = Regex(@"-\d+") 
     let parsePackagePath (path:string) =
-        let name = Path.GetFileName path
-        let i = name.IndexOf("-")
-        (if i >= 0 then name.Substring(0, i) else name), path
-
+        path |> Path.GetFileNameWithoutExtension |> verDelimRegex.Split |> Array.head, path
+        
     let updated, ignored = 
         packages 
         |> List.map parsePackagePath

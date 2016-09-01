@@ -4,6 +4,7 @@ open System
 open System.IO
 open System.IO.Compression
 
+open Updater
 open Updater.Model
 open System.Net
 
@@ -17,10 +18,10 @@ let repoClient (repoUrl : string) (versionUrl : string) =
         let versionPath = versionUri.LocalPath
         { new IRepoClient with
             member __.GetVersion() = 
-                File.ReadAllText(versionPath).Trim()
+                (versionPath |> readText).Trim()
 
             member __.GetManifest(version) = 
-                File.ReadAllText(rootPath @@ version @! ".manifest.json")
+                rootPath @@ version @! ".manifest.json" |> readText
 
             member __.DownloadPackage(name, path, progress) = 
                 async {

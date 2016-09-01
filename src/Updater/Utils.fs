@@ -8,6 +8,8 @@ module Helper =
     let inline (@@) (path1:string) (path2:string) = Path.Combine(path1, path2) 
     let inline (@!) (path:string) (extension:string) = path + extension
 
+    let inline readText path = File.ReadAllText path
+
     let binDir () =
         Uri(System.Reflection.Assembly.GetExecutingAssembly().CodeBase).LocalPath |> Path.GetDirectoryName
 
@@ -119,8 +121,9 @@ module Json =
                 
                     member __.WriteJson(writer, value, serializer) = 
                         let value = 
-                            if value = null then null
-                            else 
+                            match value with
+                            | null -> null
+                            | value -> 
                                 let _, fields = FSharpValue.GetUnionFields(value, value.GetType())
                                 fields.[0]
                         serializer.Serialize(writer, value)
@@ -134,8 +137,9 @@ module Json =
                     
                         let value = serializer.Deserialize(reader, innerType)
                         let cases = FSharpType.GetUnionCases(t)
-                        if value = null then FSharpValue.MakeUnion(cases.[0], [||])
-                        else FSharpValue.MakeUnion(cases.[1], [| value |]) }
+                        match value with
+                        | null -> FSharpValue.MakeUnion(cases.[0], [||])
+                        | value -> FSharpValue.MakeUnion(cases.[1], [| value |]) }
               { new JsonConverter() with
                     member __.CanConvert(t : Type) = t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<list<_>>
                 
@@ -183,5 +187,10 @@ module Json =
                      "fullPath", Path.GetFullPath(path) ]
 
     let read<'T> path =
-        File.ReadAllText path
+        path
+        |> readText
         |> deserialize<'T> (pathVars path)
+
+    let fromJson<'T> str = 
+        use sr = new StringReader(str)
+        serializer.Deserialize(sr, typeof<'T>) :?> 'T

@@ -1,7 +1,3 @@
-// --------------------------------------------------------------------------------------
-// FAKE build script
-// --------------------------------------------------------------------------------------
-
 #r @"packages/build/FAKE/tools/FakeLib.dll"
 
 open Fake
@@ -144,15 +140,14 @@ Target "MergeToolsExe" (fun _ ->
 #load "paket-files/build/fsharp/FAKE/modules/Octokit/Octokit.fsx"
 open Octokit
 
+let getInput paramName getter prompt =
+    match getBuildParam paramName with
+        | s when not (String.IsNullOrWhiteSpace s) -> s
+        | _ -> getter prompt
+
 Target "ReleaseGitHub" (fun _ ->
-    let user =
-        match getBuildParam "github-user" with
-        | s when not (String.IsNullOrWhiteSpace s) -> s
-        | _ -> getUserInput "Username: "
-    let pw =
-        match getBuildParam "github-pw" with
-        | s when not (String.IsNullOrWhiteSpace s) -> s
-        | _ -> getUserPassword "Password: "
+    let user =  getInput "github-user" getUserInput "Username: "
+    let pw = getInput "github-pw" getUserPassword "Password: "
     let remote =
         Git.CommandHelper.getGitResult "" "remote -v"
         |> Seq.filter (fun (s: string) -> s.EndsWith("(push)"))

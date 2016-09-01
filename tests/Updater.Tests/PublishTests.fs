@@ -7,7 +7,6 @@ open Updater.Publish.Program
 
 open System.IO
 open Xunit
-open Xunit.Abstractions
 open FsUnit.Xunit
 
 
@@ -21,7 +20,7 @@ type PublishTests (testDirFixture : TestDirFixture) =
     let publishV1 () =
         let manifest = 
             { app = { name = "app1"; title = "App 1"; desc = None; channel = ""; version = "1.0" }
-              pkgs = Map.ofList ["app1", "app1-1.0"; "updater", "updater-1"]
+              pkgs = Map.ofList ["app1", "app1-1.0"; "updater", "updater-1"; "some-tool", "some-tool"]
               layout = { main = "app1"; deps = [] }
               shortcuts = []
               launch = { target = "${pkgs.app1}\\app.exe"; workDir = None; args = None } 
@@ -29,6 +28,9 @@ type PublishTests (testDirFixture : TestDirFixture) =
         manifest |> serialize |> save (repoDir @@ "app1-1.0.manifest.json")
         "app1-1.0" |> save versionPath
     
+    let loadManifest name = 
+        repoDir @@ name |> readText |> fromJson<Manifest> 
+
     let genPkg name =
         let path = tempDir @@ name @! ".zip"
         name |> save path
@@ -41,9 +43,10 @@ type PublishTests (testDirFixture : TestDirFixture) =
 
         publish repoDir versionPath pkgs |> should equal 0
 
-        versionPath |> File.ReadAllText |> should equal "app1-1.1"
-        let manifest = read<Manifest> (repoDir @@ "app1-1.1.manifest.json")
+        versionPath |> readText |> should equal "app1-1.1"
+        let manifest = loadManifest "app1-1.1.manifest.json"
         manifest.pkgs |> Map.find "app1" |> should equal "app1-1.1"
+        manifest.launch.target |> should haveSubstring "${pkgs.app1}"
 
     [<Fact>]
     let ``publish secondary package`` () =
@@ -52,10 +55,22 @@ type PublishTests (testDirFixture : TestDirFixture) =
 
         publish repoDir versionPath pkgs |> should equal 0
 
-        versionPath |> File.ReadAllText |> should equal "app1-1.0-1"
+        versionPath |> readText |> should equal "app1-1.0-1"
         let manifest = read<Manifest> (repoDir @@ "app1-1.0-1.manifest.json")
         manifest.pkgs |> Map.find "app1" |> should equal "app1-1.0"
         manifest.pkgs |> Map.find "updater" |> should equal "updater-2"
+
+    [<Fact>]
+    let ``publish secondary package with dash in name`` () =
+        publishV1 ()
+        let pkgs = [ "some-tool-2" |> genPkg ] 
+
+        publish repoDir versionPath pkgs |> should equal 0
+
+        versionPath |> readText |> should equal "app1-1.0-1"
+        let manifest = read<Manifest> (repoDir @@ "app1-1.0-1.manifest.json")
+        manifest.pkgs |> Map.find "app1" |> should equal "app1-1.0"
+        manifest.pkgs |> Map.find "some-tool" |> should equal "some-tool-2"
 
     [<Fact>]
     let ``publish main and secondary package`` () =
@@ -64,7 +79,7 @@ type PublishTests (testDirFixture : TestDirFixture) =
 
         publish repoDir versionPath pkgs |> should equal 0
 
-        versionPath |> File.ReadAllText |> should equal "app1-1.1"
+        versionPath |> readText |> should equal "app1-1.1"
         let manifest = read<Manifest> (repoDir @@ "app1-1.1.manifest.json")
         manifest.pkgs |> Map.find "app1" |> should equal "app1-1.1"
         manifest.pkgs |> Map.find "updater" |> should equal "updater-2"

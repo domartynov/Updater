@@ -114,7 +114,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         let updater = Updater(config, (repoClient config.repoUrl config.versionUrl), testUI)
         updater.Execute Install
 
-        appDir @@ (appName ++ "1") @@ "result.txt" |> File.ReadAllText 
+        appDir @@ (appName ++ "1") @@ "result.txt" |> readText 
         |> should equal "v1"
 
         match appDir @@ "app1-1.manifest.json" |> read<Manifest> with
@@ -131,7 +131,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         updater.Execute (Install, skipLaunch=true)
         updater.Execute (Update "app1-1.manifest.json")
 
-        appDir @@ (appName ++ "1") @@ "result.txt" |> File.ReadAllText 
+        appDir @@ (appName ++ "1") @@ "result.txt" |> readText 
         |> should equal "v1"
 
     [<Fact>]
@@ -145,7 +145,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         match appDir @@ "app1-1.1.manifest.json" |> read<Manifest> with
         | { shortcuts = [ { parentDir = Some parentDir; name = name } ] } -> 
             let (_, targetPath, _, _, _, _) = parentDir @@ name @! ".lnk" |> readShortcut
-            targetPath @@ "..\\version.txt" |> File.ReadAllText
+            targetPath @@ "..\\version.txt" |> readText
             |> should equal "u2"
         | _ -> failwith "Unexpected manifest file"
     
