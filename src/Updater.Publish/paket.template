@@ -1,0 +1,16 @@
+type file
+id Updater.Publisher
+description
+    A tool to publish packages to a repo used by Updater.Tool.
+version
+    0.0.0
+authors
+    domartynov
+releasenotes
+	...
+licenseurl https://raw.githubusercontent.com/domartynov/Updater/master/LICENSE
+projecturl https://github.com/domartynov/Updater
+tags
+    updater, deployment, client application, publisher, F#
+files
+    ../../bin/merged/publisher.exe ==> tools

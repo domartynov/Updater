@@ -1,3 +1,6 @@
+#### 0.1.4 - 09/02/2016
+* publish tools in nupkgs
+
 #### 0.1.3 - 09/01/2016
 * FIXED: app.version is not updated
 

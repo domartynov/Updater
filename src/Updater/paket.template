@@ -1,0 +1,16 @@
+type file
+id Updater.Tool
+description
+    Client application updater tool.
+version
+    0.0.0
+authors
+    domartynov
+releasenotes
+	...
+licenseurl https://raw.githubusercontent.com/domartynov/Updater/master/LICENSE
+projecturl https://github.com/domartynov/Updater
+tags
+    updater, deployment, client application, F#
+files
+    ../../bin/merged/updater.exe ==> tools

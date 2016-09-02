@@ -116,26 +116,19 @@ Target "MergeToolsExe" (fun _ ->
     mergePublisherLibs |> mergeLibs
 )
 
-//Target "NuGet" (fun _ ->    
-//    !! "integrationtests/**/paket.template" |> Seq.iter DeleteFile
-//    Paket.Pack (fun p -> 
-//        { p with 
-//            ToolPath = "bin/merged/paket.exe" 
-//            Version = release.NugetVersion
-//            ReleaseNotes = toLines release.Notes })
-//)
-//
-//
-//Target "PublishNuGet" (fun _ ->
-//    if hasBuildParam "PublishBootstrapper" |> not then
-//        !! (tempDir </> "*bootstrapper*")
-//        |> Seq.iter File.Delete
-//
-//    Paket.Push (fun p -> 
-//        { p with 
-//            ToolPath = "bin/merged/paket.exe"
-//            WorkingDir = tempDir }) 
-//)
+Target "NuGet" (fun _ ->    
+    Paket.Pack (fun p -> 
+        { p with 
+            Version = release.NugetVersion
+            ReleaseNotes = toLines release.Notes })
+)
+
+Target "PublishNuGet" (fun _ ->
+    Paket.Push (fun p -> 
+        { p with 
+            PublishUrl = "https://www.nuget.org"
+            WorkingDir = tempDir }) 
+)
 
 #load "paket-files/build/fsharp/FAKE/modules/Octokit/Octokit.fsx"
 open Octokit
@@ -182,7 +175,12 @@ Target "All" DoNothing
 "All"
   =?> ("RunIntegrationTests", hasBuildParam "RunIntegrationTests")
   ==> "MergeToolsExe" 
+  ==> "NuGet"
   ==> "ReleaseGitHub"
+
+"NuGet"
+  ==> "PublishNuGet"
+  ==> "Release"
 
 "ReleaseGitHub"
   ==> "Release"
