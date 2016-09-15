@@ -92,7 +92,7 @@ type JsonTests() =
         let vars = Map.ofList ["filename", "test.txt"; "dir", "\\a"]
 
         let result = deserialize<Launch> vars """{"target":"${dir}\\${filename}"}"""
-        result |> should equal { target = "\\a\\test.txt"; args = None; workDir = None } 
+        result |> should equal { target = "\\a\\test.txt"; args = None; workDir = None; expectExitCodes = None } 
 
     [<Fact>]
     let ``deserialize recurvise resolve variables``() =
@@ -104,12 +104,12 @@ type JsonTests() =
           "target":"${dir}\\${filename}"
         }
         """
-        result |> should equal { target = "\\a\\test.txt"; args = None; workDir = Some "\\a\\test.txt\\.." } 
+        result |> should equal { target = "\\a\\test.txt"; args = None; workDir = Some "\\a\\test.txt\\.."; expectExitCodes = None} 
 
     [<Fact>]
     let ``deserialize resolve env vars``() =
         let result = deserialize<Launch> Map.empty """{"target":"%windir%\\system32\\notepad.exe"}"""
-        result |> should equal { target = (Environment.ExpandEnvironmentVariables "%windir%") @@ "system32\\notepad.exe"; args = None; workDir = None } 
+        result |> should equal { target = (Environment.ExpandEnvironmentVariables "%windir%") @@ "system32\\notepad.exe"; args = None; workDir = None; expectExitCodes = None } 
 
     [<Fact>]
     let ``deserialize app manifest``() = 
@@ -174,4 +174,5 @@ type JsonTests() =
                           launch = 
                               { target = "qzpc-0.1\\bin\\pycharm64.exe"
                                 args = None
-                                workDir = None } }
+                                workDir = None
+                                expectExitCodes = None } }

@@ -30,10 +30,13 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
         if proc.Start() then
             proc.BeginOutputReadLine()
             proc.BeginErrorReadLine()
-            if proc.WaitForExit(5000) && proc.ExitCode <> 0 then
-                raise (sprintf "Process failed: \"%s\" %s in (%s)\r\n%O" psi.FileName psi.Arguments psi.WorkingDirectory sb |> exn)
+            if proc.WaitForExit(5000) then
+                match launch.expectExitCodes with
+                | Some codes when not (codes |> List.contains proc.ExitCode) ->
+                    raise (sprintf "Process failed: \"%s\" %s in (%s)\r\n%O" psi.FileName psi.Arguments psi.WorkingDirectory sb |> exn)
+                | _ -> ()
 
-    let downloadPackages (pkgs:Packages) =
+    let downloadPackages (pkgs:Packages) = 
         let download (pkg, name) = 
             let dest = config.appDir @@ name
             if Directory.Exists dest then (pkg, false) 
@@ -106,5 +109,6 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
             if mode = Install && not skipLaunch then
                 { target = config.appDir @@ manifest.pkgs.["updater"] @@ "updater.exe" 
                   args = Some (sprintf "\"%s\"" manifestName) 
-                  workDir = None } 
+                  workDir = None
+                  expectExitCodes = Some [ 0 ] } 
                 |> launch

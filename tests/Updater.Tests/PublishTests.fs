@@ -22,7 +22,7 @@ type PublishTests (testDirFixture : TestDirFixture) =
               pkgs = Map.ofList ["app1", "app1-1.0"; "updater", "updater-1"; "some-tool", "some-tool"]
               layout = { main = "app1"; deps = [] }
               shortcuts = []
-              launch = { target = "${pkgs.app1}\\app.exe"; workDir = None; args = None } 
+              launch = { target = "${pkgs.app1}\\app.exe"; workDir = None; args = None; expectExitCodes = None } 
             }
         manifest |> serialize |> save (repoDir @@ "app1-1.0.manifest.json")
         "app1-1.0" |> save versionPath

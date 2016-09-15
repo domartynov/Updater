@@ -148,6 +148,9 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
             targetPath @@ "..\\version.txt" |> readText
             |> should equal "u2"
         | _ -> failwith "Unexpected manifest file"
-    
-    interface IClassFixture<TestDirFixture>
 
+    [<Fact>]
+    let ``layout updater and main packages`` () =
+        ()
+       
+    interface IClassFixture<TestDirFixture>

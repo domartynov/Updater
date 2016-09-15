@@ -36,7 +36,8 @@ and Shortcut =
 and Launch = 
     { target : string 
       args : string option
-      workDir: string option}
+      workDir: string option
+      expectExitCodes: list<int> option}
 
 type IRepoClient = 
     abstract GetVersion : unit -> string
