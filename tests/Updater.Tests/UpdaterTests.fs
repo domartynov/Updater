@@ -286,7 +286,15 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         brokenUpdater |> execute
 
         appDir @@ "app1-1.0.1" @@ "result.txt" |> readText |> should equal "1.0.1"
-       
+
+    [<Fact>]
+    let ``cleanup old package dirs and shortcuts`` () =
+        publishV1() |> updateOnly
+        [ genAppPkg "1.0.1"; genToolsPkg "1.1" ] |> publish |> updateOnly
+        updater.SkipCleanUp <- false
+        [ genAppPkg "1.0.2" ] |> publish |> updateOnly
+
+
     interface IClassFixture<TestDirFixture>
 
     interface IDisposable with

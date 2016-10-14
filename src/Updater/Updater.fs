@@ -159,7 +159,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
             try 
                 match artifact with
                 | CleanDir path -> Directory.Move(path, path + "~")
-                                   Directory.Delete(path + "~")
+                                   Directory.Delete(path + "~", true)
                 | CleanFile path -> File.Delete(path)
                 true
             with _ -> false 
