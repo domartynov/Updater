@@ -1,7 +1,8 @@
 ﻿namespace Updater.Model
 
 type Config = 
-    { appDir : string
+    { appName : string
+      appDir : string
       repoUrl : string
       versionUrl: string
       keepVersions : int }
@@ -22,7 +23,8 @@ and Packages = Map<string, string>
 and Dependency = 
     { pkg : string
       from : string option
-      ``to`` : string option }
+      ``to`` : string option
+      parent: string option }
 and Layout = 
     { main : string
       deps : Dependency list }
@@ -49,3 +51,15 @@ type IUI =
     abstract ConfirmUpdate: unit -> bool
     abstract ReportError: exn -> unit
 
+[<RequireQualifiedAccess>]
+module DuplicateName =
+    let re = System.Text.RegularExpressions.Regex("-d(?<dup>\d+)\+")
+    
+    let next name =
+        re.Match name |> function
+        | m when m.Success -> name.Substring(0, m.Groups.[0].Index), (int m.Groups.["dup"].Value) + 1
+        | _ -> name, 0
+
+    let baseName = next >> fst
+
+    let format (name, dup) = sprintf "%s-d%d+" name dup

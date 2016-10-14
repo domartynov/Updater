@@ -5,8 +5,15 @@ module Helper =
     open System.IO
     open System
 
+    let inline (>>=) ma f = Option.bind f ma
+    let (|?) = defaultArg
+
     let inline (@@) (path1:string) (path2:string) = Path.Combine(path1, path2) 
     let inline (@!) (path:string) (extension:string) = path + extension
+
+    let (@=@) (path1:string) (path2:string) = 
+        String.Equals(Path.GetFullPath path1, Path.GetFullPath path2, StringComparison.InvariantCultureIgnoreCase)
+    let (@<>@) path1 path2 = not (path1 @=@ path2)
 
     let inline readText path = File.ReadAllText path
 
@@ -22,7 +29,18 @@ module Helper =
         File.WriteAllText(path + "~", text)
         if File.Exists path then File.Delete path
         File.Move(path + "~", path)
-        
+
+    let trimEnd suffix (str : string)  =
+        if str.EndsWith(suffix) then str.Substring(0, str.Length - suffix.Length) else str
+
+    let trimStart prefix (str : string) =
+        if str.StartsWith(prefix) then str.Substring(prefix.Length) else str
+
+    let splitArgs (args : string) = // TODO add regex to handle args in double quotes
+        args.Split(' ')
+        |> Seq.filter (not << String.IsNullOrWhiteSpace)
+        |> Seq.toList
+      
 
 module HardLink =
     open System.Runtime.InteropServices
@@ -35,7 +53,7 @@ module HardLink =
         if not <| CreateHardLink(linkPath, targetPath, IntPtr.Zero) then
             Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error())
 
-module ShellLink = 
+module WindowsShell = 
     open System
     open System.Reflection
     open System.Runtime.InteropServices
@@ -53,11 +71,18 @@ module ShellLink =
         abstract WorkingDirectory:string with get, set
         abstract Load : path:string -> unit
         abstract Save : unit -> unit
+
+    type ShellLink = 
+        { TargetPath: string
+          Arguments: string
+          WorkingDir: string
+          Description: string
+          IconLocation: string }
    
-    let createShortcut (shortcutPath: string, targetPath: string, arguments: string, workingDir: string, descripton: string, iconPath: string) =
+    let createShortcut (path : string) { TargetPath=targetPath; Arguments=arguments; WorkingDir=workingDir; Description=descripton; IconLocation=iconPath } =
         let shellType = Type.GetTypeFromProgID("WScript.Shell")
         let shellObj = Activator.CreateInstance(shellType)
-        let shortcut = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shellObj, [| shortcutPath |]) :?> IWshShortcut
+        let shortcut = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shellObj, [| path |]) :?> IWshShortcut
         shortcut.Arguments <- arguments
         shortcut.Description <- descripton
         shortcut.Hotkey <- ""
@@ -70,7 +95,11 @@ module ShellLink =
         let shellType = Type.GetTypeFromProgID("WScript.Shell")
         let shellObj = Activator.CreateInstance(shellType)
         let shortcut = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shellObj, [| shortcutPath |]) :?> IWshShortcut
-        (shortcut.FullName, shortcut.TargetPath, shortcut.Arguments, shortcut.WorkingDirectory, shortcut.Description, shortcut.IconLocation)
+        { TargetPath = shortcut.TargetPath
+          Arguments = shortcut.Arguments
+          WorkingDir = shortcut.WorkingDirectory
+          Description = shortcut.Description
+          IconLocation = shortcut.IconLocation }
 
 module Json = 
     open System
@@ -81,7 +110,7 @@ module Json =
     open Newtonsoft.Json.Linq
     open System.Text.RegularExpressions
 
-    type ResolvingJTokenReader(root, variables:Map<string, string>) = 
+    type ResolvingJTokenReader(root, variables : string -> string option) = 
         inherit JTokenReader(root)
 
         let resolveEnvVars (str : string) = 
@@ -89,7 +118,7 @@ module Json =
 
         let resolver (m:Match) =
             let value = m.Value.Substring(2, m.Value.Length - 3)
-            match Map.tryFind value variables with
+            match variables value  with
                 | Some v -> v
                 | None ->
                     match root.SelectToken(value) with
@@ -180,11 +209,16 @@ module Json =
         use jr = new ResolvingJTokenReader(JToken.Parse str, vars)
         serializer.Deserialize(jr, typeof<'T>) :?> 'T
 
-    let pathVars path = 
-        Map.ofList [ "path", path
-                     "parentDir", Path.GetDirectoryName(path)
-                     "fileName", Path.GetFileName(path)
-                     "fullPath", Path.GetFullPath(path) ]
+    let pathVars path = function
+        | "path" -> path |> Some
+        | "parentDir" -> Path.GetDirectoryName path |> Some
+        | "fileName" -> Path.GetFileName path |> Some
+        | "fullPath" -> Path.GetFullPath path |> Some
+        | "DesktopDirectory" -> Environment.GetFolderPath Environment.SpecialFolder.DesktopDirectory |> Some
+        | "StartMenu" -> Environment.GetFolderPath Environment.SpecialFolder.StartMenu |> Some
+        | "LocalApplicationData" -> Environment.GetFolderPath Environment.SpecialFolder.LocalApplicationData |> Some
+        | "ApplicationData" -> Environment.GetFolderPath Environment.SpecialFolder.ApplicationData |> Some
+        | _ -> None
 
     let read<'T> path =
         path

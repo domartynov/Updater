@@ -60,7 +60,7 @@ type HttpRepoFixture () =
 
 [<Trait("Category", "Integration")>]
 type HttpRepoClientTests (server : HttpRepoFixture) =
-    let client = repoClient server.RepoUrl "app1.version.json"
+    let client = repoClient server.RepoUrl "app1.version.txt"
 
     [<Fact>]
     let ``test GetVersion`` () =

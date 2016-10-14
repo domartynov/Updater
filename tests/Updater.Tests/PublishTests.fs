@@ -16,6 +16,9 @@ type PublishTests (testDirFixture : TestDirFixture) =
 
     let versionPath = repoDir @@ "app1.version.txt"
 
+    let publish pkgs = 
+        publish repoDir versionPath pkgs |> should equal 0
+
     let publishV1 () =
         let manifest = 
             { app = { name = "app1"; title = "App 1"; desc = None; channel = ""; version = "1.0" }
@@ -40,7 +43,7 @@ type PublishTests (testDirFixture : TestDirFixture) =
         publishV1 ()
         let pkgs = [ "app1-1.1" |> genPkg ] 
 
-        publish repoDir versionPath pkgs |> should equal 0
+        publish pkgs
 
         versionPath |> readText |> should equal "app1-1.1"
         let manifest = loadManifest "app1-1.1.manifest.json"
@@ -53,7 +56,7 @@ type PublishTests (testDirFixture : TestDirFixture) =
         publishV1 ()
         let pkgs = [ "updater-2" |> genPkg ] 
 
-        publish repoDir versionPath pkgs |> should equal 0
+        publish pkgs
 
         versionPath |> readText |> should equal "app1-1.0-1"
         let manifest = read<Manifest> (repoDir @@ "app1-1.0-1.manifest.json")
@@ -65,19 +68,20 @@ type PublishTests (testDirFixture : TestDirFixture) =
         publishV1 ()
         let pkgs = [ "some-tool-2" |> genPkg ] 
 
-        publish repoDir versionPath pkgs |> should equal 0
+        publish pkgs
 
         versionPath |> readText |> should equal "app1-1.0-1"
         let manifest = read<Manifest> (repoDir @@ "app1-1.0-1.manifest.json")
         manifest.pkgs |> Map.find "app1" |> should equal "app1-1.0"
         manifest.pkgs |> Map.find "some-tool" |> should equal "some-tool-2"
+        manifest.app.version |> should equal "1.0"
 
     [<Fact>]
     let ``publish main and secondary package`` () =
         publishV1 ()
         let pkgs = [ "app1-1.1"; "updater-2" ] |> List.map genPkg
 
-        publish repoDir versionPath pkgs |> should equal 0
+        publish pkgs
 
         versionPath |> readText |> should equal "app1-1.1"
         let manifest = read<Manifest> (repoDir @@ "app1-1.1.manifest.json")

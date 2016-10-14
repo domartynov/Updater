@@ -19,6 +19,8 @@ type Foo3 =
     { layout : Map<string, string> }
 
 type JsonTests() = 
+    let emptyVars _ = None
+
     [<Fact>]
     let ``record serialize``() = 
         serialize { name = "John"; active = true }
@@ -29,10 +31,10 @@ type JsonTests() =
     
     [<Fact>]
     let ``record derialize``() = 
-        deserialize<Foo> Map.empty "{\"name\":\"John\",\"active\":true}"
+        deserialize<Foo> emptyVars "{\"name\":\"John\",\"active\":true}"
         |> should equal { name = "John"; active = true }
         
-        deserialize<Foo> Map.empty "{\"name\":\"John\"}" 
+        deserialize<Foo> emptyVars "{\"name\":\"John\"}" 
         |> should equal { name = "John"; active = false }
     
     [<Fact>]
@@ -58,10 +60,10 @@ type JsonTests() =
     
     [<Fact>]
     let ``deserialize option and list``() = 
-        deserialize<Foo2> Map.empty "{\"copy\":true,\"names\":[\"a\",\"b\",\"c\"]}" 
+        deserialize<Foo2> emptyVars "{\"copy\":true,\"names\":[\"a\",\"b\",\"c\"]}" 
         |> should equal { copy = Some(true); names = [ "a"; "b"; "c" ] }
 
-        deserialize<Foo2> Map.empty "{\"names\":[\"a\",\"b\",\"c\"]}" 
+        deserialize<Foo2> emptyVars "{\"names\":[\"a\",\"b\",\"c\"]}" 
         |> should equal { copy = None; names = [ "a"; "b"; "c" ] }
     
     [<Fact>]
@@ -81,24 +83,24 @@ type JsonTests() =
     
     [<Fact>]
     let ``deserialize map``() = 
-        deserialize<Foo3> Map.empty "{\"layout\":{\"a\":\"1\",\"b\":\"2\"}}" 
+        deserialize<Foo3> emptyVars "{\"layout\":{\"a\":\"1\",\"b\":\"2\"}}" 
         |> should equal { layout = Map.ofList [ "a", "1"; "b", "2" ] }
         
-        deserialize<Foo3> Map.empty "{\"layout\":{}}" 
+        deserialize<Foo3> emptyVars "{\"layout\":{}}" 
         |> should equal { layout = Map.empty }
 
     [<Fact>]
     let ``deserialize resolve variables``() =
         let vars = Map.ofList ["filename", "test.txt"; "dir", "\\a"]
 
-        let result = deserialize<Launch> vars """{"target":"${dir}\\${filename}"}"""
+        let result = deserialize<Launch> vars.TryFind """{"target":"${dir}\\${filename}"}"""
         result |> should equal { target = "\\a\\test.txt"; args = None; workDir = None; expectExitCodes = None } 
 
     [<Fact>]
     let ``deserialize recurvise resolve variables``() =
         let vars = Map.ofList ["filename", "test.txt"; "dir", "\\a"]
 
-        let result = deserialize<Launch> vars """
+        let result = deserialize<Launch> vars.TryFind """
         {
           "workDir":"${target}\\..",
           "target":"${dir}\\${filename}"
@@ -108,7 +110,7 @@ type JsonTests() =
 
     [<Fact>]
     let ``deserialize resolve env vars``() =
-        let result = deserialize<Launch> Map.empty """{"target":"%windir%\\system32\\notepad.exe"}"""
+        let result = deserialize<Launch> emptyVars """{"target":"%windir%\\system32\\notepad.exe"}"""
         result |> should equal { target = (Environment.ExpandEnvironmentVariables "%windir%") @@ "system32\\notepad.exe"; args = None; workDir = None; expectExitCodes = None } 
 
     [<Fact>]
@@ -163,7 +165,8 @@ type JsonTests() =
                                 deps = 
                                     [ { pkg = "jre"
                                         from = None
-                                        ``to`` = Some "jre" } ] }
+                                        ``to`` = Some "jre" 
+                                        parent = None } ] }
                           shortcuts = 
                               [ { name = "QzPycharm-0.1"
                                   target = "updater-1\\updater.exe qzpc-test.json" 

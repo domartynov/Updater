@@ -39,7 +39,7 @@ with
 
 
 let locateRepo repoUri =
-    Uri(defaultArg repoUri (Environment.GetEnvironmentVariable "UPDATER_REPO")).LocalPath
+    Uri(defaultArg repoUri (Environment.GetEnvironmentVariable "UPDATER_REPO")).LocalPath |> Path.GetFullPath
 
 let locateVersion repo (name: string option)= 
     let locate filename = 
@@ -48,30 +48,35 @@ let locateVersion repo (name: string option)=
         path
 
     match name with
-    | Some filename when filename.EndsWith(".version.txt") -> locate filename
-    | Some name ->                                            locate (name + ".version.txt")
+    | Some filename when filename.EndsWith(".version.txt") -> 
+        locate filename
+    | Some name -> 
+        locate (name + ".version.txt")
     | None -> 
         match Directory.EnumerateFiles(repo, "*.version.txt") |> Seq.truncate 2 |> Seq.toList with
         | [filename] -> locate filename
         | [] -> failwith "Not found version file in the repo"
-        | _ -> failwith "Ambigous version, multiply version files found. Specify --name explicitly."
+        | _ -> failwith "Ambigous version, found multiple version files. Specify --name explicitly."
 
 let locatePackage path =
     if not (File.Exists path) then failwithf "Not found package: %s" path
     path
 
 let publish repo versionPath packages = 
-    let toManifestPath version =
+    let manifestPath version =
         repo @@ version @! ".manifest.json"
     
     let version = (versionPath |> readText).Trim()
-    let manifest = version |> toManifestPath |> readText |> fromJson<Manifest>
-
+    let manifest = version |> manifestPath |> readText |> fromJson<Manifest>
+    
     let copyPackage path = 
         let filename = Path.GetFileName path
-        let tmp = repo @@ filename @! "~"
-        File.Copy(path, tmp)
-        File.Move(tmp, repo @@ filename)
+        let dest = repo @@ filename
+        if dest @<>@ path then 
+            let tmp = dest @! "~"
+            File.Copy(path, tmp)
+            if File.Exists dest then File.Delete dest
+            File.Move(tmp, dest)
         Path.GetFileNameWithoutExtension filename
 
     let verDelimRegex = Regex(@"-(?=\d)") 
@@ -82,22 +87,53 @@ let publish repo versionPath packages =
         packages 
         |> List.map parsePackagePath
         |> List.partition (fun (name, _) -> manifest.pkgs |> Map.containsKey name)
-    ignored |> List.iter (fun (name, path) -> printfn "Skipped package %s not found in the %s manifest for: %s" name version path)
-    let copied = updated |> Seq.map (fun (name, path) -> name, copyPackage path) 
-    let pkgs = [Map.toSeq manifest.pkgs; copied] |> Seq.concat |> Map.ofSeq
+    
+    for (name, path) in ignored do 
+        printfn "Skipped package %s not found in the %s manifest for: %s" name version path
+    
+    let copied = 
+        updated 
+        |> List.map (fun (name, path) -> name, copyPackage path) 
+
+    let duplicatedParentPackages = 
+        let copiedPkgs = copied |> Seq.map fst 
+        manifest.layout.deps 
+        |> Seq.filter (fun d -> Seq.contains d.pkg copiedPkgs)
+        |> Seq.groupBy (fun d -> d.parent |? manifest.layout.main)
+        |> Seq.filter (fun (parent, _) -> not <| Seq.contains parent copiedPkgs)
+        |> Seq.map (fun (parent, _) -> parent, manifest.pkgs.[parent] |> DuplicateName.next |> DuplicateName.format)
+
+    let pkgs = 
+        [ manifest.pkgs |> Map.toSeq
+          copied |> List.toSeq 
+          duplicatedParentPackages ] 
+        |> Seq.concat 
+        |> Map.ofSeq
 
     let newVersion = 
-        let seed = pkgs |> Map.find manifest.layout.main
-        let toVersion = function 0 -> seed | i -> sprintf "%s-%d" seed i
-        Seq.initInfinite toVersion
-        |> Seq.filter (toManifestPath >> File.Exists >> not)
+        let seed = pkgs.[manifest.layout.main]
+        Seq.initInfinite (function 0 -> seed | i -> sprintf "%s-%d" seed i) // TODO review if still needed
+        |> Seq.filter (not << File.Exists << manifestPath)
         |> Seq.head
 
-    let appVersion = newVersion |> verDelimRegex.Split |> Seq.skip 1 |> Seq.tryLast
-    { manifest with pkgs = pkgs
-                    app = { manifest.app with version = defaultArg appVersion ""} }
+    let mainVersion manifest =
+        let getBaseName = DuplicateName.next >> fst
+        manifest.pkgs.[manifest.layout.main] 
+        |> getBaseName 
+        |> verDelimRegex.Split 
+        |> Seq.skip 1 
+        |> Seq.tryLast
+        |? manifest.app.version
+
+    let updateAppVersion = 
+        if manifest.app.version = (mainVersion manifest) then 
+            fun manifest -> { manifest with app = { manifest.app with version = mainVersion manifest } }
+        else id
+    
+    { manifest with pkgs = pkgs }
+    |> updateAppVersion                    
     |> serialize
-    |> save (newVersion |> toManifestPath)
+    |> save (manifestPath newVersion)
 
     newVersion |> save versionPath
     0
