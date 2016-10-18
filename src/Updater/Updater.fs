@@ -25,6 +25,10 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
     let versionPath = config.appDir @@ (config.appName + ".version.txt")
     let updaterTxtPath = config.appDir @@ "updater.txt"
 
+    let isUpdaterDep = function 
+        | { parent = Some "updater" } -> true
+        | _ -> false
+
     let pkgDir name = 
         config.appDir @@ name
 
@@ -195,7 +199,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
             |> Seq.filter (not << keepArtifacts.Contains)
             |> Seq.map deleteArtifact 
             |> Seq.fold (&&) true |> function 
-                | true -> CleanFile manifestPath |> deleteArtifact |> ignore
+                | true -> manifestPath |> CleanFile |> deleteArtifact |> ignore
                 | _ -> ()
 
         removeVersions 
@@ -248,7 +252,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
             
         let updateUpdater  (currentManifest : Manifest option) manifest currentVersion version = 
             let updaterPackages { pkgs = pkgs; layout = layout } =
-                [ for dep in layout.deps do if dep.parent = Some "updater" then yield (dep.pkg, pkgs.[dep.pkg]) ] @
+                [ for { pkg = pkg } in layout.deps |> Seq.filter isUpdaterDep -> pkg, pkgs.[pkg] ] @
                 match pkgs.TryFind "updater" with
                 | Some updatePkgName -> [ "updater", updatePkgName ] 
                 | _ -> [] 
@@ -264,7 +268,6 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
                                |> Seq.except curUpdaterPkgs 
                                |> Seq.append updaterPkgs |> Map
                     let deps =
-                        let isUpdaterDep { parent = parent } = parent = Some "updater"
                         List.filter (not << isUpdaterDep) curManifest.layout.deps @
                         List.filter isUpdaterDep manifest.layout.deps
                     let updaterSuffix = updaterPkgs |> List.tryFind (fun (pkg, _) -> pkg = "updater") |> function
@@ -300,7 +303,8 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
             else  manifest |> updaterExePath |> save updaterTxtPath 
             manifest
             
-        let currentVersion, version = readVersion(), client.GetVersion()
+        let currentVersion = readVersion()
+        let version = client.GetVersion()
         match currentVersion with
         | Some cv when cv = version || 
                   not <| ui.ConfirmUpdate() -> cv |> manifestPath |> read<Manifest> 

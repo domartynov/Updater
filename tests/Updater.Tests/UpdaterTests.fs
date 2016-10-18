@@ -291,8 +291,18 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
     let ``cleanup old package dirs and shortcuts`` () =
         publishV1() |> updateOnly
         [ genAppPkg "1.0.1"; genToolsPkg "1.1" ] |> publish |> updateOnly
+        appDir @@ "test~" |> Directory.CreateDirectory |> ignore
+        save (appDir @@ "test.txt~") "test!!!" 
+
         updater.SkipCleanUp <- false
         [ genAppPkg "1.0.2" ] |> publish |> updateOnly
+
+        appDir @@ "app1-1.0.0" |> Directory.Exists |> should equal false
+        appDir @@ "tools-1.0" |> Directory.Exists |> should equal false
+        appDir @@ "app1-1.0.0.manifest.json" |> File.Exists |> should equal false
+        testDir @@ "user" @@ "desktop" @@ "App1-1.0.0.lnk" |> File.Exists |> should equal false
+        appDir @@ "test~" |> Directory.Exists |> should equal false
+        appDir @@ "test.txt~" |> File.Exists |> should equal false
 
 
     interface IClassFixture<TestDirFixture>
