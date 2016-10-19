@@ -5,6 +5,7 @@ open System.IO.Compression
 
 open Updater
 open Updater.Model
+open Updater.Logging
 open System.Net
 
 let repoClient (repoUrl : string) (versionUrl : string) = 
@@ -17,14 +18,14 @@ let repoClient (repoUrl : string) (versionUrl : string) =
         let versionPath = versionUri.LocalPath
         { new IRepoClient with
             member __.GetVersion() = 
-                (versionPath |> readText).Trim()
+                (versionPath |> infoAs "GetVersion" |> readText).Trim()
 
             member __.GetManifest(version) = 
-                rootPath @@ version @! ".manifest.json" |> readText
+                rootPath @@ version @! ".manifest.json" |> infoAs "GetManifest" |> readText
 
             member __.DownloadPackage(name, path, progress) = 
                 async {
-                    ZipFile.ExtractToDirectory(rootPath @@ name @! ".zip", path)
+                    ZipFile.ExtractToDirectory(rootPath @@ name @! ".zip" |> infoAs "DownloadPackage", path)
                     progress(1, 1)
                 }
         }
@@ -32,14 +33,14 @@ let repoClient (repoUrl : string) (versionUrl : string) =
         let http = new WebClient()
         { new IRepoClient with
             member __.GetVersion() = 
-                http.DownloadString(versionUri).Trim()
+                http.DownloadString(versionUri |> infoAs "GetVersion").Trim()
 
             member __.GetManifest(version) =
-                http.DownloadString(sprintf "%O%s.manifest.json" rootUri version) 
+                http.DownloadString(sprintf "%O%s.manifest.json" rootUri version |> infoAs "GetManifest") 
 
             member __.DownloadPackage(name, path, progress) = 
                 async {
-                    use stream = http.OpenRead(sprintf "%O%s.zip" rootUri name)
+                    use stream = http.OpenRead(sprintf "%O%s.zip" rootUri name |> infoAs "DownloadPackage")
                     use archive = new ZipArchive(stream)
                     archive.ExtractToDirectory(path)
                     progress(1, 1)

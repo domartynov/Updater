@@ -40,7 +40,12 @@ module Helper =
         args.Split(' ')
         |> Seq.filter (not << String.IsNullOrWhiteSpace)
         |> Seq.toList
-      
+
+    let runningExePath () = 
+        match System.Reflection.Assembly.GetEntryAssembly() with
+        | null -> "in_unit_test_we_dont_care"  // TODO review
+        | entry -> entry.Location
+
 
 module HardLink =
     open System.Runtime.InteropServices
@@ -100,6 +105,7 @@ module WindowsShell =
           WorkingDir = shortcut.WorkingDirectory
           Description = shortcut.Description
           IconLocation = shortcut.IconLocation }
+
 
 module Json = 
     open System
@@ -228,3 +234,54 @@ module Json =
     let fromJson<'T> str = 
         use sr = new StringReader(str)
         serializer.Deserialize(sr, typeof<'T>) :?> 'T
+
+
+module Logging =
+    type EntryLevel = Info=0 | Warn=1 | Error=2
+    type Entry = { Timestamp: System.DateTime; Level: EntryLevel; Message: obj }
+    
+    let mutable hasErrors = false
+    let entries = ResizeArray<Entry>()
+
+    let logEntry level (o : obj) = 
+        entries.Add { Timestamp = System.DateTime.Now; Level = level; Message = o }
+        if level = EntryLevel.Error && not hasErrors then hasErrors <- true
+
+    let inline logInfo m = logEntry EntryLevel.Info m
+    let inline logWarn m = logEntry EntryLevel.Warn m
+    let inline logError m = logEntry EntryLevel.Error m
+
+    let logWith level name (value: 'a) : 'a = 
+        sprintf "%s: %A" name value |> logEntry level
+        value
+
+    let infoAs name (value: 'a) : 'a = logWith EntryLevel.Info name value
+    let errorAs name (value: 'a) : 'a = logWith EntryLevel.Error name value
+
+    let tsf (ts : System.DateTime) = ts.ToString("s")
+
+    let dumpAllEnabled () = System.Environment.GetEnvironmentVariable "UPDATER_DUMP_ALL" |> function
+        | null -> true
+        | _ -> true
+
+    let dump () =
+        if hasErrors || dumpAllEnabled () then
+            let ts = (System.DateTime.Now |> tsf).Replace(":", "").Replace("-", "")
+            let pid = System.Diagnostics.Process.GetCurrentProcess().Id
+            let path = System.IO.Path.GetTempPath() @@ (sprintf "updater-%s-%d.dump.txt" ts pid)
+            use w = new System.IO.StreamWriter(path)
+            for e in entries do
+                w.Write (tsf e.Timestamp)
+                w.Write '\t'
+                e.Level |> function
+                | EntryLevel.Error -> "ERROR"
+                | EntryLevel.Warn -> "WARN"
+                | EntryLevel.Info -> "INFO"
+                | other -> other.ToString()
+                |> w.Write
+                w.Write '\t'
+                w.WriteLine e.Message
+
+    do 
+        System.AppDomain.CurrentDomain.ProcessExit.Add (ignore >> dump)
+        System.AppDomain.CurrentDomain.UnhandledException.Add (fun e -> logError e.ExceptionObject)

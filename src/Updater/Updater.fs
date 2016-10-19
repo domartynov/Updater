@@ -10,6 +10,7 @@ open Updater.Json
 open Updater.Model
 open Updater.WindowsShell
 open Updater.HardLink
+open Updater.Logging
 
 type CleanItem =
     | CleanFile of string
@@ -46,8 +47,9 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
         else None
 
     let launch { launch = launch } =
-        let target = config.appDir @@ launch.target
-        let psi = ProcessStartInfo(target, launch.args |? "", UseShellExecute=false, RedirectStandardError=true, RedirectStandardOutput=true)
+        let args = launch.args |? ""
+        let target = config.appDir @@ launch.target |> infoAs (sprintf "Launch: \"%s\"" args)
+        let psi = ProcessStartInfo(target, args, UseShellExecute=false, RedirectStandardError=true, RedirectStandardOutput=true)
         psi.WorkingDirectory <- launch.workDir |? Path.GetDirectoryName psi.FileName
         use proc = new Process(StartInfo=psi)
         let sb = StringBuilder()
@@ -154,9 +156,23 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
               WorkingDir=shortcut.workDir |? Path.GetDirectoryName target
               Description=shortcut.name
               IconLocation=config.appDir @@ (shortcut.icon |? shortcut.target) }
-            |> createShortcut (shortcutPath shortcut)
+            |> createShortcut (shortcutPath shortcut |> infoAs "CreateShortcut")
         
         shortcuts |> Seq.iter create
+
+    let launchUpdaterExe argStr exePath  =
+        let startProcess path args =
+            let arg = String.Join(" ", args |> Seq.filter (not << String.IsNullOrWhiteSpace)  |> Set)
+            ProcessStartInfo(path |> infoAs (sprintf "LaunchUpdater: \"%s\"" arg), arg, UseShellExecute=false) 
+            |> Process.Start 
+
+        "--skip-fwd-updater" :: (splitArgs argStr)
+        |> function
+            | l when System.Diagnostics.Debugger.IsAttached -> "--attach-debugger" :: l
+            | l -> l 
+        |> startProcess exePath
+        |> ignore
+
 
     let cleanUp excludeVersions =
         let deleteArtifact artifact = 
@@ -215,28 +231,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
     member val SkipRelaunchNewUpdater = false with get, set
 
     member self.Execute() =
-        let launchUpdater exePath =
-            let startProcess path args =
-                let arg = String.Join(" ", args |> Seq.filter (not << String.IsNullOrWhiteSpace)  |> Set)
-                ProcessStartInfo(path, arg, UseShellExecute=false) 
-                |> Process.Start 
-
-            "--skip-fwd-updater" :: (splitArgs self.Args)
-            |> function
-                | l when System.Diagnostics.Debugger.IsAttached -> "--attach-debugger" :: l
-                | l -> l 
-            |> startProcess exePath
-            |> ignore
-
-        if not self.SkipForwardUpdater && File.Exists updaterTxtPath then 
-            let runningExePath = 
-                match System.Reflection.Assembly.GetEntryAssembly() with
-                | null -> "in_unit_test_we_dont_care"  // TODO review
-                | entry -> entry.Location
-            match readText updaterTxtPath with
-            | latestUpdaterExePath when latestUpdaterExePath  @<>@ runningExePath ->
-                launchUpdater latestUpdaterExePath
-            | _ -> ()
+        self.Args |> infoAs "Execute" |> ignore    
 
         let launchIfConfigured manifest = 
             if not self.SkipLaunch then launch manifest
@@ -248,7 +243,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
             if not self.SkipRelaunchNewUpdater then 
                 manifest 
                 |> updaterExePath 
-                |> launchUpdater
+                |> launchUpdaterExe self.Args
             
         let updateUpdater  (currentManifest : Manifest option) manifest currentVersion version = 
             let updaterPackages { pkgs = pkgs; layout = layout } =
@@ -293,25 +288,34 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
             |> layout manifest
             |> if updaterOnly then ignore else createShortcuts 
 
-            save (manifestPath version) json
+            save (manifestPath version |> infoAs "SaveManifest") json
             save versionPath version 
 
             if updaterOnly then 
                 launchUpdater manifest
                 self.SkipLaunch <- true // TODO review here we break current update process relaunching updater.exe
                 self.SkipCleanUp <- true
-            else  manifest |> updaterExePath |> save updaterTxtPath 
+            else  
+                manifest |> updaterExePath |> infoAs "SaveUpdaterExePath" |> save updaterTxtPath 
             manifest
-            
-        let currentVersion = readVersion()
-        let version = client.GetVersion()
-        match currentVersion with
-        | Some cv when cv = version || 
-                  not <| ui.ConfirmUpdate() -> cv |> manifestPath |> read<Manifest> 
-        | currentVersion -> update currentVersion version
-        |> launchIfConfigured
 
-        if not self.SkipCleanUp then
-            Process.GetCurrentProcess().PriorityClass <- ProcessPriorityClass.Idle
-            version :: (Option.toList currentVersion)
-            |> cleanUp
+        if not self.SkipForwardUpdater && File.Exists updaterTxtPath then 
+            match readText updaterTxtPath with
+            | latestUpdExePath when latestUpdExePath  @<>@ runningExePath() -> Some latestUpdExePath
+            | _ -> None
+        else None
+        |> function
+            | Some fwdUpdPath -> launchUpdaterExe self.Args fwdUpdPath
+            | _ ->
+                let currentVersion = readVersion()
+                let version = client.GetVersion()
+                match currentVersion with
+                | Some cv when cv = version || 
+                          not <| ui.ConfirmUpdate() -> cv |> manifestPath |> read<Manifest> 
+                | currentVersion -> (currentVersion, version) |> infoAs "Update" ||> update 
+                |> launchIfConfigured
+
+                if not self.SkipCleanUp then
+                    Process.GetCurrentProcess().PriorityClass <- ProcessPriorityClass.Idle
+                    version :: (Option.toList currentVersion)
+                    |> cleanUp

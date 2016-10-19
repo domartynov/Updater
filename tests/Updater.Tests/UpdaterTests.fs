@@ -270,10 +270,6 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         readCurrentManifest().app.version |> should equal "1.0.0"
 
     [<Fact>]
-    let ``update existing icon`` () =
-        () // TODO
-
-    [<Fact>]
     let ``updater on entry to forward to the latest updater`` () =
         publishV1() |> updateOnly
         [ genUpdaterPkg "0.3.0" ] |> publish |> updateOnly

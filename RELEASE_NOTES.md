@@ -1,5 +1,8 @@
+#### 0.2.1 - 19.10.2016
+* logging
+
 #### 0.2.0 - 10/17/2016
-* support update of secondary only packages 
+* support update of only secondary packages 
 * forward to the latest version of the updater
 * restart the updater if a new version of the updater is downloaded
 * cleanup of old and temp artifacts

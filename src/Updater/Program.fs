@@ -4,13 +4,14 @@ open System
 open Updater.Model
 open Updater.RepoClient
 open Updater.Json
+open Updater.Logging
 
 let (|FlagParameter|_|) name (input : String[]) =
     if Array.contains name input then Some FlagParameter else None
 
 [<EntryPoint>]
 let main argv = 
-    argv |> function | FlagParameter "--attach-debugger" -> System.Diagnostics.Debugger.Launch() |> ignore | _ -> ()
+    argv |> infoAs "EntryPoint" |> function | FlagParameter "--attach-debugger" -> System.Diagnostics.Debugger.Launch() |> ignore | _ -> ()
 
     let ui = 
         match argv with
@@ -31,5 +32,6 @@ let main argv =
         0
     with
     | ex ->
+        logError ex
         ui.ReportError ex
         -1
