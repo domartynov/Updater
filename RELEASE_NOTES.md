@@ -1,4 +1,7 @@
-#### 0.2.1 - 19.10.2016
+#### 0.2.2 - 10/2016
+* skip cleanup of updater packages (enabled by default)
+
+#### 0.2.1 - 10/19/2016
 * logging
 
 #### 0.2.0 - 10/17/2016

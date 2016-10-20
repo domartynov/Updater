@@ -5,7 +5,8 @@ type Config =
       appDir : string
       repoUrl : string
       versionUrl: string
-      keepVersions : int }
+      keepVersions : int
+      cleanupUpdaters: bool }
 
 type Manifest = 
     { app : App

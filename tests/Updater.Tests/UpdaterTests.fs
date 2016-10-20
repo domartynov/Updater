@@ -60,7 +60,8 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
           appDir = appDir 
           repoUrl = Uri(repoDir).AbsoluteUri
           versionUrl = "app1.version.txt"
-          keepVersions = 2 }
+          keepVersions = 2
+          cleanupUpdaters = false }
 
     let (++) name version = name + "-" + version
 

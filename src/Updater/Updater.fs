@@ -30,6 +30,12 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
         | { parent = Some "updater" } -> true
         | _ -> false
 
+    let updaterPackages { pkgs = pkgs; layout = layout } =
+        [ for { pkg = pkg } in layout.deps |> Seq.filter isUpdaterDep -> pkg, pkgs.[pkg] ] @
+        match pkgs.TryFind "updater" with
+        | Some updatePkgName -> [ "updater", updatePkgName ] 
+        | _ -> [] 
+
     let pkgDir name = 
         config.appDir @@ name
 
@@ -189,9 +195,10 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
         |> Seq.concat
         |> Seq.iter (deleteArtifact >> ignore)
 
-        let findArtifacts { pkgs = pkgs; shortcuts = shortcuts } =
-            [ pkgs |> Map.toSeq |> Seq.map (snd >> pkgDir >> CleanDir)
-              shortcuts |> Seq.map (shortcutPath >> CleanFile) ]
+        let findArtifacts skipUpdaters manifest =
+            let updPkgs = if skipUpdaters then updaterPackages manifest else []
+            [ manifest.pkgs |> Map.toSeq |> Seq.except updPkgs |> Seq.map (snd >> pkgDir >> CleanDir)
+              manifest.shortcuts |> Seq.map (shortcutPath >> CleanFile) ]
             |> Seq.concat
             |> Seq.toList
 
@@ -207,7 +214,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
 
         let keepArtifacts = 
             keepVersions 
-            |> Seq.collect (manifestPath >> read<Manifest> >> findArtifacts) 
+            |> Seq.collect (manifestPath >> read<Manifest> >> findArtifacts false) 
             |> Set
 
         let deleteArtifactsAndManifest (manifestPath, artifacts) =
@@ -220,7 +227,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
 
         removeVersions 
         |> Seq.map (fun v -> let path = manifestPath v in 
-                             path, path |> read<Manifest> |> findArtifacts)
+                             path, path |> read<Manifest> |> findArtifacts (not config.cleanupUpdaters))
         |> Seq.iter deleteArtifactsAndManifest
 
     member val SkipLaunch = false with get, set
@@ -246,12 +253,6 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
                 |> launchUpdaterExe self.Args
             
         let updateUpdater  (currentManifest : Manifest option) manifest currentVersion version = 
-            let updaterPackages { pkgs = pkgs; layout = layout } =
-                [ for { pkg = pkg } in layout.deps |> Seq.filter isUpdaterDep -> pkg, pkgs.[pkg] ] @
-                match pkgs.TryFind "updater" with
-                | Some updatePkgName -> [ "updater", updatePkgName ] 
-                | _ -> [] 
-
             match currentManifest, manifest with
             | None, manifest -> false, version, manifest
             | Some curManifest, manifest ->
