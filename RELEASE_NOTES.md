@@ -1,4 +1,9 @@
-#### 0.2.2 - 10/2016
+#### 0.2.3 - 10/20/2016
+* FIXED: update only updates prompt user confirmation
+* add *version* parameter to launch a particular version of the app (opposed to the latest)
+* zip logs
+
+#### 0.2.2 - 10/20/2016
 * skip cleanup of updater packages (enabled by default)
 
 #### 0.2.1 - 10/19/2016

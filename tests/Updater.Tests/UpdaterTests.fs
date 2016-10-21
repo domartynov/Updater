@@ -130,10 +130,14 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         [ Text version, "version.txt" ]
         |> addPkg ("app1" ++ version)
 
+
+    let mutable userPrompts = 0
     let testUI =
         { new IUI with
-            member __.ConfirmUpdate () = true 
-            member __.ReportError (ex) = raise (ex)
+            member __.ConfirmUpdate () = 
+                userPrompts <- userPrompts + 1
+                true 
+            member __.ReportError ex = raise ex
         }
 
     let client = repoClient config.repoUrl config.versionUrl
@@ -189,8 +193,10 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
                 | _ -> ()
         check 0
 
-    let execute (updater : Updater) =
-        updater.Execute () |> updaterProcsShouldComplete
+    let executeFor (version : string option) (updater : Updater) =
+        version |> updater.Execute |> updaterProcsShouldComplete
+
+    let execute = executeFor None
 
     let updateOnly () =
         let tmp = updater.SkipLaunch
@@ -230,6 +236,16 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         appDir @@ "app1-1.0.1" @@ "result.txt" |> readText |> should equal "1.0.1"
 
     [<Fact>]
+    let ``update main app, but launch prev`` () =
+        publishV1() |> updateOnly
+        [ genAppPkg "1.0.1" ] |> publish |> updateOnly
+
+        updater |> executeFor (Some "app1-1.0.0")
+
+        appDir @@ "app1-1.0.0" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "app1-1.0.1" @@ "result.txt" |> File.Exists |> should equal false
+
+    [<Fact>]
     let ``update main app and tools`` () =
         publishV1() |> updateOnly
 
@@ -238,6 +254,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
 
         appDir @@ "app1-1.1.2" @@ "result.txt" |> readText |> should equal "1.1.2"
         appDir @@ "app1-1.1.2" @@ "tools.txt" |> readText |> should equal "1.1"
+        userPrompts |> should equal 1
 
     [<Fact>]
     let ``update updater`` () =
@@ -258,6 +275,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
 
         appDir @@ "updater-0.3.0" @@ "updater.txt" |> readText |> should equal "0.3.0"
         appDir @@ "updater-0.3.0" @@ "updater-config.txt" |> readText |> should equal "1.0.1"
+        userPrompts |> should equal 0
 
     [<Fact>]
     let ``update updater-config only`` () =
@@ -269,6 +287,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         appDir @@ "updater-0.1.0-d0+" @@ "updater.txt" |> readText |> should equal "0.1.0"
         appDir @@ "updater-0.1.0-d0+" @@ "updater-config.txt" |> readText |> should equal "1.0.1"
         readCurrentManifest().app.version |> should equal "1.0.0"
+        userPrompts |> should equal 0
 
     [<Fact>]
     let ``updater on entry to forward to the latest updater`` () =
@@ -283,6 +302,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         brokenUpdater |> execute
 
         appDir @@ "app1-1.0.1" @@ "result.txt" |> readText |> should equal "1.0.1"
+        userPrompts |> should equal 0
 
     [<Fact>]
     let ``cleanup old package dirs and shortcuts`` () =

@@ -8,6 +8,8 @@ module Helper =
     let inline (>>=) ma f = Option.bind f ma
     let (|?) = defaultArg
 
+    let iff cond f g = if cond then f else g
+
     let inline (@@) (path1:string) (path2:string) = Path.Combine(path1, path2) 
     let inline (@!) (path:string) (extension:string) = path + extension
 
@@ -237,6 +239,11 @@ module Json =
 
 
 module Logging =
+    open System
+    open System.Diagnostics
+    open System.IO
+    open System.IO.Compression
+
     type EntryLevel = Info=0 | Warn=1 | Error=2
     type Entry = { Timestamp: System.DateTime; Level: EntryLevel; Message: obj }
     
@@ -260,28 +267,25 @@ module Logging =
 
     let tsf (ts : System.DateTime) = ts.ToString("s")
 
-    let dumpAllEnabled () = System.Environment.GetEnvironmentVariable "UPDATER_DUMP_ALL" |> function
-        | null -> true
-        | _ -> true
-
     let dump () =
-        if hasErrors || dumpAllEnabled () then
-            let ts = (System.DateTime.Now |> tsf).Replace(":", "").Replace("-", "")
-            let pid = System.Diagnostics.Process.GetCurrentProcess().Id
-            let path = System.IO.Path.GetTempPath() @@ (sprintf "updater-%s-%d.dump.txt" ts pid)
-            use w = new System.IO.StreamWriter(path)
-            for e in entries do
-                w.Write (tsf e.Timestamp)
-                w.Write '\t'
-                e.Level |> function
-                | EntryLevel.Error -> "ERROR"
-                | EntryLevel.Warn -> "WARN"
-                | EntryLevel.Info -> "INFO"
-                | other -> other.ToString()
-                |> w.Write
-                w.Write '\t'
-                w.WriteLine e.Message
+        let ts = (DateTime.Now |> tsf).Replace(":", "").Replace("-", "")
+        let pid = Process.GetCurrentProcess().Id
+        let path = Path.GetTempPath() @@ (sprintf "updater-%s-%d.dump.zip" ts pid)
+        use arch = ZipFile.Open(path, ZipArchiveMode.Create)
+        use stream = arch.CreateEntry("dump.txt").Open()
+        use w = new StreamWriter(stream)
+        for e in entries do
+            w.Write (tsf e.Timestamp)
+            w.Write '\t'
+            e.Level |> function
+            | EntryLevel.Error -> "ERROR"
+            | EntryLevel.Warn -> "WARN"
+            | EntryLevel.Info -> "INFO"
+            | other -> other.ToString()
+            |> w.Write
+            w.Write '\t'
+            w.WriteLine e.Message
 
     do 
-        System.AppDomain.CurrentDomain.ProcessExit.Add (ignore >> dump)
-        System.AppDomain.CurrentDomain.UnhandledException.Add (fun e -> logError e.ExceptionObject)
+        AppDomain.CurrentDomain.ProcessExit.Add (ignore >> dump)
+        AppDomain.CurrentDomain.UnhandledException.Add (fun e -> logError e.ExceptionObject)

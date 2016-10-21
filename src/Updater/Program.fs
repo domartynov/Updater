@@ -9,6 +9,9 @@ open Updater.Logging
 let (|FlagParameter|_|) name (input : String[]) =
     if Array.contains name input then Some FlagParameter else None
 
+let posParameter (input : String[]) =
+    input |> Array.tryHead |> Option.bind (fun p -> if not <| p.StartsWith("--") then Some p else None) 
+
 [<EntryPoint>]
 let main argv = 
     argv |> infoAs "EntryPoint" |> function | FlagParameter "--attach-debugger" -> System.Diagnostics.Debugger.Launch() |> ignore | _ -> ()
@@ -16,8 +19,8 @@ let main argv =
     let ui = 
         match argv with
         | FlagParameter "--test-mode" -> { new IUI with
-                                         member __.ConfirmUpdate () = true 
-                                         member __.ReportError ex = raise ex }
+                                           member __.ConfirmUpdate () = true 
+                                           member __.ReportError ex = raise ex }
         | _ -> UI() :> IUI
     try
         let config = (binDir ()) @@ "config.json" |> read<Config>
@@ -28,7 +31,7 @@ let main argv =
         argv |> function | FlagParameter "--skip-fwd-updater" -> updater.SkipForwardUpdater <- true | _ -> ()
         // TODO restore failwithf "Unexpected arguments: %A" argv
         
-        updater.Execute()
+        argv |> posParameter |> updater.Execute
         0
     with
     | ex ->
