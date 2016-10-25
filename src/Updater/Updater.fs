@@ -238,6 +238,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
     member val SkipRelaunchNewUpdater = false with get, set
 
     member self.Execute (launchVersion: string option) =
+        let launchVersion = launchVersion |> Option.map (trimEnd ".manifest.json")
         self.Args |> infoAs "Execute" |> ignore    
 
         let updaterExePath m =

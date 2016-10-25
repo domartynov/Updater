@@ -246,6 +246,16 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         appDir @@ "app1-1.0.1" @@ "result.txt" |> File.Exists |> should equal false
 
     [<Fact>]
+    let ``update main app, but launch prev, trim manifestjson`` () =
+        publishV1() |> updateOnly
+        [ genAppPkg "1.0.1" ] |> publish |> updateOnly
+
+        updater |> executeFor (Some "app1-1.0.0.manifest.json")
+
+        appDir @@ "app1-1.0.0" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "app1-1.0.1" @@ "result.txt" |> File.Exists |> should equal false
+
+    [<Fact>]
     let ``update main app and tools`` () =
         publishV1() |> updateOnly
 

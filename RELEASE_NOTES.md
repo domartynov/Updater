@@ -1,3 +1,6 @@
+#### 0.2.4 - 10/25/2016
+* trim .manifest.json from the end of version argument
+
 #### 0.2.3 - 10/20/2016
 * FIXED: update only updates prompt user confirmation
 * add *version* parameter to launch a particular version of the app (opposed to the latest)
