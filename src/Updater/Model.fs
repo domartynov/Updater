@@ -1,7 +1,8 @@
 ﻿namespace Updater.Model
 
 type Config = 
-    { appName : string
+    { appUid : string option
+      appName : string
       appDir : string
       repoUrl : string
       versionUrl: string
@@ -51,6 +52,7 @@ and Progress = int * int -> unit
 type IUI =
     abstract ConfirmUpdate: unit -> bool
     abstract ReportError: exn -> unit
+    abstract ReportWaitForAnotherUpdater: unit -> unit
 
 [<RequireQualifiedAccess>]
 module DuplicateName =

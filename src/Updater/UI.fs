@@ -4,11 +4,15 @@ open System.Windows.Forms
 open Updater.Model
 
 type UI() =
+    let clsWith (str : string) = 
+        System.Console.Clear()
+        System.Console.Write(str)
+
     let printProgressDot () = printf "."
     let timer = new System.Threading.Timer(new System.Threading.TimerCallback(ignore >> printProgressDot))
 
     do 
-        printfn "Updating, please wait..."
+        clsWith "Updating, please wait..."
         timer.Change(2000, 2000) |> ignore 
 
     interface IUI with
@@ -17,3 +21,6 @@ type UI() =
 
         member __.ReportError ex =
             MessageBox.Show(ex.ToString(), "Error", MessageBoxButtons.OK, MessageBoxIcon.Error) |> ignore
+
+        member __.ReportWaitForAnotherUpdater () =
+            clsWith "Waiting for another instance of updater to complete..."

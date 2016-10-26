@@ -289,3 +289,22 @@ module Logging =
     do 
         AppDomain.CurrentDomain.ProcessExit.Add (ignore >> dump)
         AppDomain.CurrentDomain.UnhandledException.Add (fun e -> logError e.ExceptionObject)
+
+module ExcusiveLock = 
+    open System
+    open System.Threading
+
+    let lockOrWait sharedName =
+        let mutex = new Mutex(false, sharedName)
+
+        let waitFor () =
+            try
+                if mutex.WaitOne() then mutex.ReleaseMutex()
+            with :? AbandonedMutexException -> mutex.ReleaseMutex()
+        
+        try
+            mutex.WaitOne(0, false)
+        with :? AbandonedMutexException -> true
+        |> function
+            | true -> Choice1Of2 { new IDisposable with member __.Dispose() = mutex.ReleaseMutex(); mutex.Dispose() }
+            | false -> Choice2Of2 waitFor

@@ -1,3 +1,6 @@
+#### 0.2.5 - 10/26/2016
+* wait for another instance of the updater if it's already running
+
 #### 0.2.4 - 10/25/2016
 * trim .manifest.json from the end of version argument
 

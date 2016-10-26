@@ -16,7 +16,16 @@ type CleanItem =
     | CleanFile of string
     | CleanDir of string
 
-type Updater(config : Config, client : IRepoClient, ui : IUI) =    
+type UpdaterStep =
+    | Entry of launchVersion : string option
+    | ForwardUpdater of path : string
+    | UpdateOrLaunch of launchVersion : string option
+    | LaunchVersion of version : string
+    | LaunchManifest of manifest : Manifest
+    | Update of currentVersion : string option * version : string
+    | CleanUp of currentVersion : string option * version : string
+
+type Updater(config : Config, client : IRepoClient, ui : IUI) as self =    
     let manifestName version = 
         version + ".manifest.json"
 
@@ -52,7 +61,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
             findLatestManifestVersions () |> Seq.tryHead
         else None
 
-    let launch { launch = launch } =
+    let launchApp { launch = launch } =
         let args = launch.args |? ""
         let target = config.appDir @@ launch.target |> infoAs (sprintf "Launch: \"%s\"" args)
         let psi = ProcessStartInfo(target, args, UseShellExecute=false, RedirectStandardError=true, RedirectStandardOutput=true)
@@ -64,7 +73,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
         if proc.Start() then
             proc.BeginOutputReadLine()
             proc.BeginErrorReadLine()
-            if proc.WaitForExit(5000) then
+            if proc.WaitForExit(2000) then // TODO review
                 match launch.expectExitCodes with
                 | Some codes when not (codes |> List.contains proc.ExitCode) ->
                     raise (sprintf "Process failed: \"%s\" %s in (%s)\r\n%O" psi.FileName psi.Arguments psi.WorkingDirectory sb |> exn)
@@ -166,26 +175,23 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
         
         shortcuts |> Seq.iter create
 
-    let launchUpdaterExe argStr exePath  =
+    let launchUpdaterExe exePath  =
         let startProcess path args =
-            let arg = String.Join(" ", args |> Seq.filter (not << String.IsNullOrWhiteSpace)  |> Set)
+            let arg = String.Join(" ", args |> Seq.filter (not << String.IsNullOrWhiteSpace))
             ProcessStartInfo(path |> infoAs (sprintf "LaunchUpdater: \"%s\"" arg), arg, UseShellExecute=false) 
             |> Process.Start 
 
-        "--skip-fwd-updater" :: (splitArgs argStr)
-        |> function
-            | l when System.Diagnostics.Debugger.IsAttached -> "--attach-debugger" :: l
-            | l -> l 
-        |> startProcess exePath
-        |> ignore
+        let args = "--skip-fwd-updater" :: (splitArgs self.Args)
+        let dbg = if System.Diagnostics.Debugger.IsAttached then ["--attach-debugger"] else []
+        let ppid = ["--ppid"; Process.GetCurrentProcess().Id |> string]
+        startProcess exePath (args @ dbg @ ppid) |> ignore
 
 
     let cleanUp excludeVersions =
         let deleteArtifact artifact = 
             try 
                 match artifact with
-                | CleanDir path -> Directory.Move(path, path + "~")
-                                   Directory.Delete(path + "~", true)
+                | CleanDir path -> Directory.Delete(path, true)
                 | CleanFile path -> File.Delete(path)
                 true
             with _ -> false 
@@ -230,101 +236,108 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) =
                              path, path |> read<Manifest> |> findArtifacts (not config.cleanupUpdaters))
         |> Seq.iter deleteArtifactsAndManifest
 
+    let updaterExePath m =
+        config.appDir @@ m.pkgs.["updater"] @@ self.UpdaterExeName // TODO review
+
+    let updateUpdater  (cm : Manifest option) m cv v = 
+        match cm, m with
+        | None, m -> false, v, m
+        | Some cm, m ->
+            match (updaterPackages cm), (updaterPackages m) with
+            | _, [] -> false, v, m
+            | curUpdaterPkgs, updaterPkgs when curUpdaterPkgs = updaterPkgs  -> false, v, m
+            | curUpdaterPkgs, updaterPkgs -> 
+                let pkgs = Map.toSeq cm.pkgs 
+                            |> Seq.except curUpdaterPkgs 
+                            |> Seq.append updaterPkgs |> Map
+                let deps =
+                    List.filter (not << isUpdaterDep) cm.layout.deps @
+                    List.filter isUpdaterDep m.layout.deps
+                let updaterSuffix = updaterPkgs |> List.tryFind (fun (pkg, _) -> pkg = "updater") |> function
+                                    | Some (pkg, name) -> trimStart pkg name
+                                    | _ -> 
+                                        updaterPkgs |> List.tryHead  |> function
+                                        | Some (pkg, name) -> trimStart pkg name
+                                        | _ -> ""
+                let partialVersion = sprintf "%s-p%s"  (cv |? v) updaterSuffix
+                let partialManifest = { cm with pkgs = pkgs; layout = { cm.layout with deps = deps } }
+                true, partialVersion, partialManifest 
+
+    let executeStep = function
+        | Entry lv -> 
+            if not self.SkipForwardUpdater && File.Exists updaterTxtPath then 
+                match readText updaterTxtPath with
+                | updExePath when updExePath  @<>@ runningExePath () -> [ForwardUpdater updExePath]
+                | _ -> [UpdateOrLaunch lv]
+            else [UpdateOrLaunch lv]
+        | ForwardUpdater p -> 
+            launchUpdaterExe p
+            []
+        | UpdateOrLaunch lv ->
+            let cv = readVersion()
+            let v = client.GetVersion()
+            match lv, cv with
+            | Some lv, None -> [LaunchVersion lv]
+            | Some lv, Some cv when lv <> cv -> [LaunchVersion lv]
+            | _, Some cv when cv = v -> [LaunchVersion cv]
+            | _, cv -> [Update (cv, v)]
+        | Update (cv, v) -> 
+            match ExcusiveLock.lockOrWait (sprintf "Global\updater_%s" (config.appUid |? config.appName)) with
+            | Choice1Of2 lock ->
+                use x = lock
+                let json = client.GetManifest(v)
+                let m = deserialize<Manifest> (v |> manifestPath |> pathVars) json
+                let cm = cv |> Option.map (manifestPath >> read<Manifest>)
+        
+                let updaterOnly, v, m = updateUpdater cm m cv v
+
+                let upd () = 
+                    m
+                    |> downloadPackages cm
+                    |> layout m
+                    |> if not updaterOnly then createShortcuts else ignore 
+
+                    save (manifestPath v |> infoAs "SaveManifest") json
+                    save versionPath v 
+
+                    if updaterOnly then 
+                        [m |>  updaterExePath |> ForwardUpdater]
+                    else  
+                        m |> updaterExePath |> infoAs "SaveUpdaterExePath" |> save updaterTxtPath 
+                        [ LaunchManifest m
+                          CleanUp (cv, v) ]
+
+                match cm with
+                | None -> upd () 
+                | Some _ when updaterOnly || ui.ConfirmUpdate() -> upd ()
+                | Some cm -> [LaunchManifest cm]
+            | Choice2Of2 waitForAnotherUpdater ->
+                ui.ReportWaitForAnotherUpdater()
+                waitForAnotherUpdater()
+                [Entry None] // TODO review
+        | LaunchVersion v -> 
+            [v |> manifestPath |> read<Manifest> |> LaunchManifest]
+        | LaunchManifest m -> 
+            if not self.SkipLaunch then launchApp m
+            []
+        | CleanUp (cv, v) ->
+            if not self.SkipCleanUp then
+                Process.GetCurrentProcess().PriorityClass <- ProcessPriorityClass.Idle
+                v :: (Option.toList cv)
+                |> cleanUp
+            []
+
+    let rec execute input =
+        input 
+        |> infoAs "Step" 
+        |> executeStep 
+        |> List.collect execute
+
     member val SkipLaunch = false with get, set
     member val UpdaterExeName = "updater.exe" with get, set
     member val Args: String = "" with get, set
     member val SkipForwardUpdater = false with get, set
     member val SkipCleanUp = false with get, set
-    member val SkipRelaunchNewUpdater = false with get, set
 
     member self.Execute (launchVersion: string option) =
-        let launchVersion = launchVersion |> Option.map (trimEnd ".manifest.json")
-        self.Args |> infoAs "Execute" |> ignore    
-
-        let updaterExePath m =
-            config.appDir @@ m.pkgs.["updater"] @@ self.UpdaterExeName // TODO review
-
-        let launchUpdater m =
-            if not self.SkipRelaunchNewUpdater then 
-                m 
-                |> updaterExePath 
-                |> launchUpdaterExe self.Args
-            
-        let updateUpdater  (cm : Manifest option) m cv v = 
-            match cm, m with
-            | None, m -> false, v, m
-            | Some cm, m ->
-                match (updaterPackages cm), (updaterPackages m) with
-                | _, [] -> false, v, m
-                | curUpdaterPkgs, updaterPkgs when curUpdaterPkgs = updaterPkgs  -> false, v, m
-                | curUpdaterPkgs, updaterPkgs -> 
-                    let pkgs = Map.toSeq cm.pkgs 
-                               |> Seq.except curUpdaterPkgs 
-                               |> Seq.append updaterPkgs |> Map
-                    let deps =
-                        List.filter (not << isUpdaterDep) cm.layout.deps @
-                        List.filter isUpdaterDep m.layout.deps
-                    let updaterSuffix = updaterPkgs |> List.tryFind (fun (pkg, _) -> pkg = "updater") |> function
-                                        | Some (pkg, name) -> trimStart pkg name
-                                        | _ -> 
-                                            updaterPkgs |> List.tryHead  |> function
-                                            | Some (pkg, name) -> trimStart pkg name
-                                            | _ -> ""
-                    let partialVersion = sprintf "%s-p%s"  (cv |? v) updaterSuffix
-                    let partialManifest = { cm with pkgs = pkgs; layout = { cm.layout with deps = deps } }
-                    true, partialVersion, partialManifest 
-
-        let update cv v =
-            let json = client.GetManifest(v)
-            let m = deserialize<Manifest> (v |> manifestPath |> pathVars) json
-            let cm = cv |> Option.map (manifestPath >> read<Manifest>)
-        
-            let updaterOnly, v, m = updateUpdater cm m cv v
-
-            let upd () = 
-                m
-                |> downloadPackages cm
-                |> layout m
-                |> if updaterOnly then ignore else createShortcuts 
-
-                save (manifestPath v |> infoAs "SaveManifest") json
-                save versionPath v 
-
-                if updaterOnly then 
-                    launchUpdater m
-                    self.SkipLaunch <- true // TODO review here we break current update process relaunching updater.exe
-                    self.SkipCleanUp <- true
-                else  
-                    m |> updaterExePath |> infoAs "SaveUpdaterExePath" |> save updaterTxtPath 
-                m
-
-            match cm with
-            | None -> upd () 
-            | Some _ when updaterOnly || ui.ConfirmUpdate() -> upd ()
-            | Some cm -> cm
-
-        let launchIf = if self.SkipLaunch then ignore else launch
-        let launchFor = manifestPath >> read<Manifest> >> launchIf
-
-        if self.SkipForwardUpdater || not <| File.Exists updaterTxtPath then None
-        else
-            match readText updaterTxtPath with
-            | updExePath when updExePath  @<>@ runningExePath() -> Some updExePath
-            | _ -> None
-        |> function
-            | Some fwdUpdPath -> launchUpdaterExe self.Args fwdUpdPath
-            | _ ->
-                let cv = readVersion()
-                let v = client.GetVersion()
-                match launchVersion, cv with
-                | Some lv, None -> launchFor lv
-                | Some lv, Some cv when lv <> cv -> launchFor lv
-                | _, Some cv when cv = v -> launchFor cv
-                | _, cv -> 
-                    (cv, v) |> infoAs "Update" 
-                    ||> update 
-                    |> launchIf
-                    if not self.SkipCleanUp then
-                        Process.GetCurrentProcess().PriorityClass <- ProcessPriorityClass.Idle
-                        v :: (Option.toList cv)
-                        |> cleanUp
+        Entry launchVersion |> execute |> ignore

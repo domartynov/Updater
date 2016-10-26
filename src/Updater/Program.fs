@@ -20,7 +20,8 @@ let main argv =
         match argv with
         | FlagParameter "--test-mode" -> { new IUI with
                                            member __.ConfirmUpdate () = true 
-                                           member __.ReportError ex = raise ex }
+                                           member __.ReportError ex = raise ex
+                                           member __.ReportWaitForAnotherUpdater () = () }
         | _ -> UI() :> IUI
     try
         let config = (binDir ()) @@ "config.json" |> read<Config>
@@ -30,8 +31,7 @@ let main argv =
         argv |> function | FlagParameter "--skip-cleanup" -> updater.SkipCleanUp <- true | _ -> ()
         argv |> function | FlagParameter "--skip-fwd-updater" -> updater.SkipForwardUpdater <- true | _ -> ()
         // TODO restore failwithf "Unexpected arguments: %A" argv
-        
-        argv |> posParameter |> updater.Execute
+        argv |> posParameter |> Option.map (trimEnd ".manifest.json") |> updater.Execute
         0
     with
     | ex ->
