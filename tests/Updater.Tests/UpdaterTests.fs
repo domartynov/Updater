@@ -238,6 +238,17 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         appDir @@ "app1-1.0.1" @@ "result.txt" |> readText |> should equal "1.0.1"
 
     [<Fact>]
+    let ``update main app and updater`` () =
+        publishV1() |> updateOnly
+
+        [ genUpdaterPkg "0.2.0"; genAppPkg "1.0.1" ] |> publish
+        updater |> execute
+
+        appDir @@ "app1-1.0.1" @@ "result.txt" |> readText |> should equal "1.0.1"
+        appDir @@ "updater-0.2.0" @@ "updater.txt" |> readText |> should equal "0.2.0"
+        appDir @@ "updater-0.2.0" @@ "updater-config.txt" |> readText |> should equal "1.0.0"
+
+    [<Fact>]
     let ``update main app, but launch prev`` () =
         publishV1() |> updateOnly
         [ genAppPkg "1.0.1" ] |> publish |> updateOnly
@@ -304,6 +315,22 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         brokenUpdater |> execute
 
         appDir @@ "app1-1.0.1" @@ "result.txt" |> readText |> should equal "1.0.1"
+        userPrompts |> should equal 0
+
+    [<Fact>]
+    let ``updater on entry skips forward if the latest updater has prior version`` () =
+        publishV1() |> updateOnly
+        [ genUpdaterPkg "0.3.0" ] |> publish |> updateOnly
+        File.Copy(repoDir @@ "app1.version.txt", repoDir @@ "broken.version.txt")
+        [ genAppPkg "1.0.1" ] |> publish
+
+        let config = { config with versionUrl = "broken.version.txt" }
+        let client = repoClient config.repoUrl config.versionUrl
+        let brokenUpdater = Updater(config, client, testUI, Args="--test-mode --skip-cleanup", SkipCleanUp=true)
+        brokenUpdater.UpdaterVersion <- 0, 3, 1
+        brokenUpdater |> execute
+
+        appDir @@ "app1-1.0.0" @@ "result.txt" |> readText |> should equal "1.0.0"
         userPrompts |> should equal 0
 
     [<Fact>]

@@ -1,3 +1,7 @@
+#### 0.2.6 - 10/27/2016
+* FIXED: fails update the updater and the app pkgs in one update
+* FIXED: updater forwards to previous version
+
 #### 0.2.5 - 10/26/2016
 * wait for another instance of the updater if it's already running
 

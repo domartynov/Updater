@@ -41,7 +41,7 @@ and Launch =
     { target : string 
       args : string option
       workDir: string option
-      expectExitCodes: list<int> option}
+      expectExitCodes: list<int> option }
 
 type IRepoClient = 
     abstract GetVersion : unit -> string
@@ -66,3 +66,4 @@ module DuplicateName =
     let baseName = next >> fst
 
     let format (name, dup) = sprintf "%s-d%d+" name dup
+        

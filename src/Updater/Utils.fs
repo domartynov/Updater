@@ -32,6 +32,11 @@ module Helper =
         if File.Exists path then File.Delete path
         File.Move(path + "~", path)
 
+    let ignoreExn f x =
+        try
+            f x
+        with _ -> ()
+
     let trimEnd suffix (str : string)  =
         if str.EndsWith(suffix) then str.Substring(0, str.Length - suffix.Length) else str
 
@@ -297,14 +302,18 @@ module ExcusiveLock =
     let lockOrWait sharedName =
         let mutex = new Mutex(false, sharedName)
 
-        let waitFor () =
+        let tryRelease = ignoreExn mutex.ReleaseMutex
+        let tryDispose = ignoreExn mutex.Dispose
+
+        let waitForFunc () =
             try
-                if mutex.WaitOne() then mutex.ReleaseMutex()
-            with :? AbandonedMutexException -> mutex.ReleaseMutex()
+                if mutex.WaitOne() then tryRelease()
+            with :? AbandonedMutexException -> tryRelease()
+            tryDispose()
         
         try
             mutex.WaitOne(0, false)
         with :? AbandonedMutexException -> true
         |> function
-            | true -> Choice1Of2 { new IDisposable with member __.Dispose() = mutex.ReleaseMutex(); mutex.Dispose() }
-            | false -> Choice2Of2 waitFor
+            | true -> Choice1Of2 { new IDisposable with member __.Dispose() = () |> tryRelease |> tryDispose }
+            | false -> Choice2Of2 waitForFunc

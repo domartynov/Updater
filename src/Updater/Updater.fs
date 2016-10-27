@@ -26,6 +26,18 @@ type UpdaterStep =
     | CleanUp of currentVersion : string option * version : string
 
 type Updater(config : Config, client : IRepoClient, ui : IUI) as self =    
+    let runningUpdaterVersion () =
+        let ver = self.GetType().Assembly.GetName().Version
+        ver.Major, int32 ver.MajorRevision, ver.Minor
+
+    let parseUpdaterVersion (n : string) = 
+        match n.IndexOf('-') with 
+        | i when i >=0 && i + 1 < n.Length -> 
+            n.Substring(i).Split('.') |> Array.map System.Int32.TryParse |> function
+                | [| true, t1; true, t2; true, t3 |] -> t1, t2, t3
+                | _ -> 0, 0, 0
+        | _ -> 0, 0, 0
+
     let manifestName version = 
         version + ".manifest.json"
 
@@ -260,14 +272,20 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
                                         | Some (pkg, name) -> trimStart pkg name
                                         | _ -> ""
                 let partialVersion = sprintf "%s-p%s"  (cv |? v) updaterSuffix
-                let partialManifest = { cm with pkgs = pkgs; layout = { cm.layout with deps = deps } }
+                let partialManifest = { cm with pkgs = pkgs 
+                                                layout = { cm.layout with deps = deps } 
+                                                shortcuts = []
+                                                launch =     { target = ""; args = None; workDir = None; expectExitCodes = None } }
                 true, partialVersion, partialManifest 
 
     let executeStep = function
         | Entry lv -> 
             if not self.SkipForwardUpdater && File.Exists updaterTxtPath then 
                 match readText updaterTxtPath with
-                | updExePath when updExePath  @<>@ runningExePath () -> [ForwardUpdater updExePath]
+                | updExePath when updExePath  @<>@ runningExePath () && 
+                                  File.Exists updExePath && 
+                                  (updExePath |> Path.GetDirectoryName |> Path.GetFileName |> parseUpdaterVersion) > self.UpdaterVersion -> 
+                    [ForwardUpdater updExePath]
                 | _ -> [UpdateOrLaunch lv]
             else [UpdateOrLaunch lv]
         | ForwardUpdater p -> 
@@ -297,7 +315,10 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
                     |> layout m
                     |> if not updaterOnly then createShortcuts else ignore 
 
-                    save (manifestPath v |> infoAs "SaveManifest") json
+                    if updaterOnly then 
+                        save (manifestPath v |> infoAs "SavePartialManifest") (serialize m)
+                    else
+                        save (manifestPath v |> infoAs "SaveManifest") json
                     save versionPath v 
 
                     if updaterOnly then 
@@ -338,6 +359,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
     member val Args: String = "" with get, set
     member val SkipForwardUpdater = false with get, set
     member val SkipCleanUp = false with get, set
+    member val UpdaterVersion = runningUpdaterVersion () with get, set
 
     member self.Execute (launchVersion: string option) =
         Entry launchVersion |> execute |> ignore
