@@ -105,11 +105,15 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
                     if not (Set.contains info.Name exclude) then
                         copy (src @@ info.Name) (dest @@ info.Name) Set.empty // TODO: review to add support for deep layout with folders merge
 
+    let rec nextTmpDir dir =
+        if not (Directory.Exists dir) then dir
+        else nextTmpDir (dir + "~")
+
     let downloadPackages currentManifest { pkgs = pkgs; layout = layout } = 
         let download baseName name =
             let dest = pkgDir name
             if not (Directory.Exists dest) then
-                let tmp = dest + "~"
+                let tmp = nextTmpDir (dest + "~")
                 client.DownloadPackage(baseName, tmp, ignore) |> Async.RunSynchronously
                 Directory.Move (tmp, dest) 
 
@@ -135,9 +139,8 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
 
         let downloadOrReuse (pkg, name) = 
             match curPkgs.TryFind pkg, DuplicateName.next name with
-            | Some curName, _ when curName = name -> None
-            | Some curName, (baseName, _) 
-                when let (curBase, _) = DuplicateName.next curName in curBase = baseName ->
+            | Some curName, _ when curName = name && pkgDir name |> Directory.Exists -> None
+            | Some curName, (baseName, _) when let (curBase, _) = DuplicateName.next curName in curBase = baseName  && pkgDir curName |> File.Exists ->
                 match curDepsMap.TryFind pkg, depsMap.TryFind pkg with
                 | Some curDeps, Some deps when curDeps = deps ->
                     let excludeItems = deps |> List.collect depItems |> Set
@@ -277,15 +280,18 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
                                                 shortcuts = []
                                                 launch =     { target = ""; args = None; workDir = None; expectExitCodes = None } }
                 true, partialVersion, partialManifest 
+    
+    let validNewerUpdater updExePath =
+        let updDir = Path.GetDirectoryName updExePath
+        File.Exists updExePath &&
+        File.Exists (updDir @@ "config.json") &&
+        (updDir |> Path.GetFileName |> parseUpdaterVersion) > self.UpdaterVersion
 
     let executeStep = function
         | Entry lv -> 
             if not self.SkipForwardUpdater && File.Exists updaterTxtPath then 
                 match readText updaterTxtPath with
-                | updExePath when updExePath  @<>@ runningExePath () && 
-                                  File.Exists updExePath && 
-                                  (updExePath |> Path.GetDirectoryName |> Path.GetFileName |> parseUpdaterVersion) > self.UpdaterVersion -> 
-                    [ForwardUpdater updExePath]
+                | updExePath when updExePath  @<>@ runningExePath () && validNewerUpdater updExePath -> [ForwardUpdater updExePath]
                 | _ -> [UpdateOrLaunch lv]
             else [UpdateOrLaunch lv]
         | ForwardUpdater p -> 

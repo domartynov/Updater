@@ -1,3 +1,6 @@
+#### 0.2.7 - 10/27/2016
+* FIXED: fails on update when a pkg from the current manifest is missing
+
 #### 0.2.6 - 10/27/2016
 * FIXED: fails update the updater and the app pkgs in one update
 * FIXED: updater forwards to previous version

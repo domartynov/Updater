@@ -280,6 +280,18 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         appDir @@ "updater-0.2.0" @@ "updater-config.txt" |> readText |> should equal "1.0.0"
 
     [<Fact>]
+    let ``restore missing pkg dir on updater update`` () =
+        publishV1() |> updateOnly
+
+        [ genUpdaterPkg "0.2.0" ] |> publish
+        Directory.Delete(appDir @@ "app1-1.0.0", true)
+        updater |> execute
+
+        appDir @@ "app1-1.0.0" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "updater-0.2.0" @@ "updater.txt" |> readText |> should equal "0.2.0"
+        appDir @@ "updater-0.2.0" @@ "updater-config.txt" |> readText |> should equal "1.0.0"
+
+    [<Fact>]
     let ``update updater and updater-config`` () =
         publishV1() |> updateOnly
 
