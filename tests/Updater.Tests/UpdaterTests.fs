@@ -142,7 +142,17 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
             member __.ReportWaitForAnotherUpdater () = () // TODO add to test
         }
 
-    let client = repoClient config.repoUrl config.versionUrl
+    let downloads = ResizeArray<string>()
+    let client = 
+        let inner = repoClient config.repoUrl config.versionUrl
+        { new IRepoClient with 
+            member __.GetVersion() = inner.GetVersion()
+            member __.GetManifest(version) = inner.GetManifest(version)
+            member __.DownloadPackage(name, path, progress) =
+                downloads.Add(name)
+                inner.DownloadPackage(name, path, progress)
+        }
+
     let updater = Updater(config, client, testUI, Args="--test-mode --skip-cleanup", SkipForwardUpdater=true, SkipCleanUp=true)
 
     let publishV1 () =
@@ -270,6 +280,46 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         userPrompts |> should equal 1
 
     [<Fact>]
+    let ``update tools uses app1 pkg`` () =
+        publishV1() |> updateOnly
+
+        [ genToolsPkg "1.1" ] |> publish
+        updater |> execute
+
+        appDir @@ "app1-1.0.0-d0+" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "app1-1.0.0-d0+" @@ "tools.txt" |> readText |> should equal "1.1"
+        userPrompts |> should equal 1
+        downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 1
+
+
+    [<Fact>]
+    let ``update tools uses app1 pkg twice`` () =
+        publishV1() |> updateOnly
+
+        [ genToolsPkg "1.1" ] |> publish |> updateOnly
+        [ genToolsPkg "1.2" ] |> publish 
+        updater |> execute
+
+        appDir @@ "app1-1.0.0-d1+" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "app1-1.0.0-d1+" @@ "tools.txt" |> readText |> should equal "1.2"
+        userPrompts |> should equal 2
+        downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 1
+
+    [<Fact>]
+    let ``update tools uses app1 pkg the 2nd time restore missing app1 pkg from prev duplicates`` () =
+        publishV1() |> updateOnly
+
+        [ genToolsPkg "1.1" ] |> publish |> updateOnly
+        [ genToolsPkg "1.2" ] |> publish 
+        Directory.Delete(appDir @@ "app1-1.0.0-d0+", true)
+        updater |> execute
+
+        appDir @@ "app1-1.0.0-d1+" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "app1-1.0.0-d1+" @@ "tools.txt" |> readText |> should equal "1.2"
+        userPrompts |> should equal 2
+        downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 2
+
+    [<Fact>]
     let ``update updater`` () =
         publishV1() |> updateOnly
 
@@ -278,6 +328,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
 
         appDir @@ "updater-0.2.0" @@ "updater.txt" |> readText |> should equal "0.2.0"
         appDir @@ "updater-0.2.0" @@ "updater-config.txt" |> readText |> should equal "1.0.0"
+        downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 1
 
     [<Fact>]
     let ``restore missing pkg dir on updater update`` () =
@@ -290,6 +341,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         appDir @@ "app1-1.0.0" @@ "result.txt" |> readText |> should equal "1.0.0"
         appDir @@ "updater-0.2.0" @@ "updater.txt" |> readText |> should equal "0.2.0"
         appDir @@ "updater-0.2.0" @@ "updater-config.txt" |> readText |> should equal "1.0.0"
+        downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 2
 
     [<Fact>]
     let ``update updater and updater-config`` () =

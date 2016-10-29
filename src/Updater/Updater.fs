@@ -138,9 +138,10 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
         let depsMap = layout |> groupDeps
 
         let downloadOrReuse (pkg, name) = 
+            let existsPkgDir = pkgDir >> Directory.Exists
             match curPkgs.TryFind pkg, DuplicateName.next name with
-            | Some curName, _ when curName = name && pkgDir name |> Directory.Exists -> None
-            | Some curName, (baseName, _) when let (curBase, _) = DuplicateName.next curName in curBase = baseName  && pkgDir curName |> File.Exists ->
+            | Some curName, _ when curName = name && existsPkgDir name -> None
+            | Some curName, (baseName, _) when let (curBase, _) = DuplicateName.next curName in curBase = baseName  && existsPkgDir curName ->
                 match curDepsMap.TryFind pkg, depsMap.TryFind pkg with
                 | Some curDeps, Some deps when curDeps = deps ->
                     let excludeItems = deps |> List.collect depItems |> Set

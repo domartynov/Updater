@@ -1,4 +1,7 @@
-#### 0.2.7 - 10/27/2016
+#### 0.2.8 - 10/29/2016
+* FIXED: does not reuse parent pkg on subsequent updates of secondary pkgs
+
+#### 0.2.7 - 10/29/2016
 * FIXED: fails on update when a pkg from the current manifest is missing
 
 #### 0.2.6 - 10/27/2016
