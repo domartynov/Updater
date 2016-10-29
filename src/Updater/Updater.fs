@@ -281,6 +281,19 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
                                                 shortcuts = []
                                                 launch =     { target = ""; args = None; workDir = None; expectExitCodes = None } }
                 true, partialVersion, partialManifest 
+
+    let canSkipConfirmUpdate cm m =
+        let confirmBaseNames m =
+            m.pkgs 
+            |> Map.toSeq
+            |> Seq.except (updaterPackages m) 
+            |> Seq.map (snd >> DuplicateName.baseName) 
+            |> Set
+
+        let confirmDeps m =
+            m.layout.deps |> Seq.filter (not << isUpdaterDep) |> Set
+
+        (confirmBaseNames cm) = (confirmBaseNames m ) && (confirmDeps cm) = (confirmDeps m)
     
     let validNewerUpdater updExePath =
         let updDir = Path.GetDirectoryName updExePath
@@ -337,7 +350,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
 
                 match cm with
                 | None -> upd () 
-                | Some _ when updaterOnly || ui.ConfirmUpdate() -> upd ()
+                | Some cm when updaterOnly || canSkipConfirmUpdate cm m || ui.ConfirmUpdate() -> upd ()
                 | Some cm -> [LaunchManifest cm]
             | Choice2Of2 waitForAnotherUpdater ->
                 ui.ReportWaitForAnotherUpdater()

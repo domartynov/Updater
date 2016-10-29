@@ -1,3 +1,6 @@
+#### 0.2.9 - 10/29/2016
+* FIXED: updater only update still promts for new version confirmation
+
 #### 0.2.8 - 10/29/2016
 * FIXED: does not reuse parent pkg on subsequent updates of secondary pkgs
 
