@@ -14,7 +14,8 @@ let posParameter (input : String[]) =
 
 [<EntryPoint>]
 let main argv = 
-    argv |> infoAs "EntryPoint" |> function | FlagParameter "--attach-debugger" -> System.Diagnostics.Debugger.Launch() |> ignore | _ -> ()
+    let entryPath = System.Reflection.Assembly.GetExecutingAssembly().CodeBase
+    argv |> infoAs (sprintf "(%s) EntryPoint" entryPath) |> function | FlagParameter "--attach-debugger" -> System.Diagnostics.Debugger.Launch() |> ignore | _ -> ()
 
     let ui = 
         match argv with

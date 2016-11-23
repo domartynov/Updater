@@ -1,3 +1,6 @@
+#### 0.2.10 - 11/23/2016
+* minor change in logging
+
 #### 0.2.9 - 10/29/2016
 * FIXED: updater only update still promts for new version confirmation
 
