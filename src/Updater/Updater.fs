@@ -28,7 +28,7 @@ type UpdaterStep =
 type Updater(config : Config, client : IRepoClient, ui : IUI) as self =    
     let runningUpdaterVersion () =
         let ver = self.GetType().Assembly.GetName().Version
-        ver.Major, int32 ver.MajorRevision, ver.Minor
+        ver.Major, ver.Minor, ver.Build
 
     let parseUpdaterVersion (n : string) = 
         match n.IndexOf('-') with 
@@ -379,7 +379,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
     member val Args: String = "" with get, set
     member val SkipForwardUpdater = false with get, set
     member val SkipCleanUp = false with get, set
-    member val UpdaterVersion = runningUpdaterVersion () with get, set
+    member val UpdaterVersion = runningUpdaterVersion () |> infoAs "UpdaterVersion" with get, set
 
     member self.Execute (launchVersion: string option) =
         Entry launchVersion |> execute |> ignore

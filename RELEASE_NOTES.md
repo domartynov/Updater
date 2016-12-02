@@ -1,3 +1,6 @@
+#### 0.2.12 - 12/02/2016
+* FIXED: updater forwards to older version due to incorrect code for reading assembly version
+
 #### 0.2.11 - 12/02/2016
 * FIXED: duplicate pkgs fail over HTTP, use "-d%d-" for duplicate name suffix instead
 * publisher to skip packages that already exist
