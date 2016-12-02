@@ -80,27 +80,28 @@ let publish repo versionPath packages =
         Path.GetFileNameWithoutExtension filename
 
     let verDelimRegex = Regex(@"-(?=\d)") 
-    let parsePackagePath (path:string) =
-        path |> Path.GetFileNameWithoutExtension |> verDelimRegex.Split |> Array.head, path
-        
-    let updated, ignored = 
-        packages 
-        |> List.map parsePackagePath
-        |> List.partition (fun (name, _) -> manifest.pkgs |> Map.containsKey name)
-    
-    for (name, path) in ignored do 
-        printfn "Skipped package %s not found in the %s manifest for: %s" name version path
-    
+    let update path =
+        let pkg = Path.GetFileNameWithoutExtension path
+        let name = pkg |> verDelimRegex.Split |> Array.head
+        match Map.tryFind name manifest.pkgs with
+        | None -> Choice2Of2 (sprintf "Skipped package %s not found in the %s manifest for: %s" name version path)
+        | Some p when p = pkg -> Choice2Of2 (sprintf "Skipped package %s that already exists in the %s manifest for: %s" name version path)
+        | _ -> Choice1Of2 (name, path)
+
     let copied = 
-        updated 
-        |> List.map (fun (name, path) -> name, copyPackage path) 
+        packages
+        |> Seq.map update
+        |> Seq.choose (function
+            | Choice1Of2 (name, path) -> Some (name, copyPackage path)
+            | Choice2Of2 err -> printf "%s" err; None)
+        |> Seq.toList
 
     let duplicatedParentPackages = 
-        let copiedPkgs = copied |> Seq.map fst 
+        let copiedPkgs = copied |> List.map fst 
         manifest.layout.deps 
-        |> Seq.filter (fun d -> Seq.contains d.pkg copiedPkgs)
+        |> Seq.filter (fun d -> List.contains d.pkg copiedPkgs)
         |> Seq.groupBy (fun d -> d.parent |? manifest.layout.main)
-        |> Seq.filter (fun (parent, _) -> not <| Seq.contains parent copiedPkgs)
+        |> Seq.filter (fun (parent, _) -> not <| List.contains parent copiedPkgs)
         |> Seq.map (fun (parent, _) -> parent, manifest.pkgs.[parent] |> DuplicateName.next |> DuplicateName.format)
 
     let pkgs = 

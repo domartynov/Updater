@@ -1,3 +1,7 @@
+#### 0.2.11 - 12/02/2016
+* FIXED: duplicate pkgs fail over HTTP, use "-d%d-" for duplicate name suffix instead
+* publisher to skip packages that already exist
+
 #### 0.2.10 - 11/23/2016
 * minor change in logging
 

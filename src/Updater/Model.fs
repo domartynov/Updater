@@ -56,7 +56,7 @@ type IUI =
 
 [<RequireQualifiedAccess>]
 module DuplicateName =
-    let re = System.Text.RegularExpressions.Regex("-d(?<dup>\d+)\+")
+    let re = System.Text.RegularExpressions.Regex("-d(?<dup>\d+)\-")
     
     let next name =
         re.Match name |> function
@@ -65,5 +65,5 @@ module DuplicateName =
 
     let baseName = next >> fst
 
-    let format (name, dup) = sprintf "%s-d%d+" name dup
+    let format (name, dup) = sprintf "%s-d%d-" name dup
         

@@ -64,13 +64,18 @@ type HttpRepoClientTests (server : HttpRepoFixture) =
 
     [<Fact>]
     let ``test GetVersion`` () =
-        File.WriteAllText(server.RepoDir @@ "app1.version.json", "app1-1")
+        File.WriteAllText(server.RepoDir @@ "app1.version.txt", "app1-1")
         client.GetVersion() |> should equal "app1-1"
 
     [<Fact>]
     let ``test GetManifest`` () = 
         File.WriteAllText(server.RepoDir @@ "app1-1.manifest.json", "{} // test")
         client.GetManifest "app1-1" |> should equal "{} // test"
+
+    [<Fact>]
+    let ``test GetManifest with dup name`` () = 
+        File.WriteAllText(server.RepoDir @@ "app1-1-d1-.manifest.json", "{} // test")
+        client.GetManifest "app1-1-d1-" |> should equal "{} // test"
         
     [<Fact>] 
     let ``test DownloadPackage`` () =

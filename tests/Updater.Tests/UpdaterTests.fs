@@ -39,6 +39,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
 
     let addPkgTo dir name items =
         let zipPath = dir @@ name @! ".zip"
+        if File.Exists zipPath then File.Delete zipPath
         use archive = ZipFile.Open(zipPath, ZipArchiveMode.Create)
         for file, name in items do
             match file with
@@ -286,8 +287,20 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         [ genToolsPkg "1.1" ] |> publish
         updater |> execute
 
-        appDir @@ "app1-1.0.0-d0+" @@ "result.txt" |> readText |> should equal "1.0.0"
-        appDir @@ "app1-1.0.0-d0+" @@ "tools.txt" |> readText |> should equal "1.1"
+        appDir @@ "app1-1.0.0-d0-" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "app1-1.0.0-d0-" @@ "tools.txt" |> readText |> should equal "1.1"
+        userPrompts |> should equal 1
+        downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 1
+
+    [<Fact>]
+    let ``update tools and the same version of app1 pkg uses app1 pkg`` () =
+        publishV1() |> updateOnly
+
+        [ genAppPkg "1.0.0"; genToolsPkg "1.1" ] |> publish
+        updater |> execute
+
+        appDir @@ "app1-1.0.0-d0-" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "app1-1.0.0-d0-" @@ "tools.txt" |> readText |> should equal "1.1"
         userPrompts |> should equal 1
         downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 1
 
@@ -300,8 +313,8 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         [ genToolsPkg "1.2" ] |> publish 
         updater |> execute
 
-        appDir @@ "app1-1.0.0-d1+" @@ "result.txt" |> readText |> should equal "1.0.0"
-        appDir @@ "app1-1.0.0-d1+" @@ "tools.txt" |> readText |> should equal "1.2"
+        appDir @@ "app1-1.0.0-d1-" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "app1-1.0.0-d1-" @@ "tools.txt" |> readText |> should equal "1.2"
         userPrompts |> should equal 2
         downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 1
 
@@ -311,11 +324,11 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
 
         [ genToolsPkg "1.1" ] |> publish |> updateOnly
         [ genToolsPkg "1.2" ] |> publish 
-        Directory.Delete(appDir @@ "app1-1.0.0-d0+", true)
+        Directory.Delete(appDir @@ "app1-1.0.0-d0-", true)
         updater |> execute
 
-        appDir @@ "app1-1.0.0-d1+" @@ "result.txt" |> readText |> should equal "1.0.0"
-        appDir @@ "app1-1.0.0-d1+" @@ "tools.txt" |> readText |> should equal "1.2"
+        appDir @@ "app1-1.0.0-d1-" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "app1-1.0.0-d1-" @@ "tools.txt" |> readText |> should equal "1.2"
         userPrompts |> should equal 2
         downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 2
 
@@ -361,8 +374,8 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         [ genUpdaterConfigPkg "1.0.1" ] |> publish
         updater |> execute
 
-        appDir @@ "updater-0.1.0-d0+" @@ "updater.txt" |> readText |> should equal "0.1.0"
-        appDir @@ "updater-0.1.0-d0+" @@ "updater-config.txt" |> readText |> should equal "1.0.1"
+        appDir @@ "updater-0.1.0-d0-" @@ "updater.txt" |> readText |> should equal "0.1.0"
+        appDir @@ "updater-0.1.0-d0-" @@ "updater-config.txt" |> readText |> should equal "1.0.1"
         readCurrentManifest().app.version |> should equal "1.0.0"
         userPrompts |> should equal 0
 
