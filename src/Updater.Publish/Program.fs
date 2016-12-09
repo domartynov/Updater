@@ -85,7 +85,7 @@ let publish repo versionPath packages =
         let name = pkg |> verDelimRegex.Split |> Array.head
         match Map.tryFind name manifest.pkgs with
         | None -> Choice2Of2 (sprintf "Skipped package %s not found in the %s manifest for: %s" name version path)
-        | Some p when p = pkg -> Choice2Of2 (sprintf "Skipped package %s that already exists in the %s manifest for: %s" name version path)
+        | Some p when DuplicateName.baseName p = pkg -> Choice2Of2 (sprintf "Skipped package %s that already exists in the %s manifest for: %s" name version path)
         | _ -> Choice1Of2 (name, path)
 
     let copied = 

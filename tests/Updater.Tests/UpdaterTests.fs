@@ -316,6 +316,18 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 1
 
     [<Fact>]
+    let ``install app with dup version of app1 pkg twice`` () =
+        publishV1() 
+        [ genAppPkg "1.0.0"; genToolsPkg "1.1" ] |> publish
+        [ genAppPkg "1.0.0"; genToolsPkg "1.2" ] |> publish
+        updater |> execute
+
+        appDir @@ "app1-1.0.0-d1-" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "app1-1.0.0-d1-" @@ "tools.txt" |> readText |> should equal "1.2"
+        userPrompts |> should equal 0
+        downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 1
+
+    [<Fact>]
     let ``update tools uses app1 pkg twice`` () =
         publishV1() |> updateOnly
 

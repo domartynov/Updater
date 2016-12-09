@@ -1,3 +1,6 @@
+#### 0.2.13 - 12/09/2016
+* FIXED: publisher produces invalid manifest after publishing secondary pkgs with the same main pkg twice
+
 #### 0.2.12 - 12/02/2016
 * FIXED: updater forwards to older version due to incorrect code for reading assembly version
 
