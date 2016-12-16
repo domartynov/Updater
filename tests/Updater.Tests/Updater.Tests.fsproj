@@ -67,6 +67,7 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="TestUtil.fs" />
+    <Compile Include="TestFs.fs" />
     <Compile Include="JsonTests.fs" />
     <Compile Include="UpdaterTests.fs" />
     <Compile Include="RepoClientTests.fs" />

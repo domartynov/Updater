@@ -16,8 +16,11 @@ type PublishTests (testDirFixture : TestDirFixture) =
 
     let versionPath = repoDir @@ "app1.version.txt"
 
+    let publishVer pkgs version =
+        publish repoDir versionPath pkgs (Some version) None |> should equal 0
+
     let publish pkgs = 
-        publish repoDir versionPath pkgs |> should equal 0
+        publish repoDir versionPath pkgs None None |> should equal 0
 
     let publishV1 () =
         let manifest = 
@@ -50,6 +53,16 @@ type PublishTests (testDirFixture : TestDirFixture) =
         manifest.pkgs |> Map.find "app1" |> should equal "app1-1.1"
         manifest.launch.target |> should haveSubstring "${pkgs.app1}"
         manifest.app.version |> should equal "1.1"
+
+    [<Fact>]
+    let ``change app version `` () =
+        publishV1 ()
+        publishVer Seq.empty "Test Ver"
+
+        versionPath |> readText |> should equal "app1-1.0-1"
+        let manifest = loadManifest "app1-1.0-1.manifest.json"
+        manifest.pkgs |> Map.find "app1" |> should equal "app1-1.0"
+        manifest.app.version |> should equal "Test Ver"
 
     [<Fact>]
     let ``publish secondary package`` () =

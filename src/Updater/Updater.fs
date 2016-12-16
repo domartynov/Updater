@@ -9,7 +9,7 @@ open Updater.Helper
 open Updater.Json
 open Updater.Model
 open Updater.WindowsShell
-open Updater.HardLink
+open Updater.Fs
 open Updater.Logging
 
 type CleanItem =
@@ -91,31 +91,15 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
                     raise (sprintf "Process failed: \"%s\" %s in (%s)\r\n%O" psi.FileName psi.Arguments psi.WorkingDirectory sb |> exn)
                 | _ -> ()
 
-    let skipOverwrite = ignore  // TODO review
-
-    let rec copy src dest exclude = 
-        if File.Exists src then
-            if File.Exists dest || Directory.Exists dest then skipOverwrite dest
-            else createHardLink dest src
-        elif Directory.Exists src then
-            if File.Exists dest then skipOverwrite dest
-            else
-                if not (Directory.Exists dest) then Directory.CreateDirectory dest |> ignore
-                for info in DirectoryInfo(src).EnumerateFileSystemInfos() do
-                    if not (Set.contains info.Name exclude) then
-                        copy (src @@ info.Name) (dest @@ info.Name) Set.empty // TODO: review to add support for deep layout with folders merge
-
-    let rec nextTmpDir dir =
-        if not (Directory.Exists dir) then dir
-        else nextTmpDir (dir + "~")
-
+    let copy = Fs.copy ignore
+    
     let downloadPackages currentManifest { pkgs = pkgs; layout = layout } = 
         let download baseName name =
             let dest = pkgDir name
             if not (Directory.Exists dest) then
                 let tmp = nextTmpDir (dest + "~")
                 client.DownloadPackage(baseName, tmp, ignore) |> Async.RunSynchronously
-                Directory.Move (tmp, dest) 
+                move tmp dest 
 
         let (curPkgs, curLayout) = 
             match currentManifest with 
@@ -127,11 +111,8 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
             | i when i >= 0 -> path.Substring(0, i)
             | _ -> path
 
-        let depItems = function
-            | { pkg = pkg; ``to`` = None }  -> // TODO cannot nest layouts (add to manifest validation)
-                [ for e in DirectoryInfo(config.appDir @@ curPkgs.[pkg]).GetFileSystemInfos() -> e.Name ]
-            | { ``to`` = Some dir } -> 
-                [ pathFirstSegment dir ] // TODO go deep recurivesly (if we want to allow merge deps in the same folder
+        let depEntries { pkg = pkg; ``to`` = dir } = 
+            dip (walk 1 (config.appDir @@ curPkgs.[pkg])) (dir |? "")
 
         let groupDeps layout = layout.deps |> List.groupBy (fun d -> d.parent |? layout.main) |> Map.ofSeq
         let curDepsMap = curLayout |> groupDeps
@@ -144,8 +125,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
             | Some curName, (baseName, _) when let (curBase, _) = DuplicateName.next curName in curBase = baseName  && existsPkgDir curName ->
                 match curDepsMap.TryFind pkg, depsMap.TryFind pkg with
                 | Some curDeps, Some deps when curDeps = deps ->
-                    let excludeItems = deps |> List.collect depItems |> Set
-                    copy (pkgDir curName) (pkgDir name) excludeItems
+                    copy (pkgDir curName) (pkgDir name) (deps |> Seq.map depEntries |> Seq.fold merge Map.empty)
                 | _ -> download baseName name
                 Some pkg
             | _, (baseName, _) ->
@@ -166,7 +146,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
 
         let layoutGroup (parent, deps) =
             for dep in deps do 
-                copy (pkgPath dep.pkg dep.from) (pkgPath parent dep.``to``) Set.empty
+                copy (pkgPath dep.pkg dep.from) (pkgPath parent dep.``to``) Map.empty
 
         layout.deps
         |> Seq.groupBy (fun d -> d.parent |? layout.main)

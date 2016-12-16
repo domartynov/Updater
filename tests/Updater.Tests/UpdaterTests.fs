@@ -35,7 +35,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
 
     let publish pkgs = 
         let paths = [ for p in pkgs -> repoDir @@ p @! ".zip" ]
-        publish repoDir repoVersionPath paths |> should equal 0
+        publish repoDir repoVersionPath paths None None |> should equal 0
 
     let addPkgTo dir name items =
         let zipPath = dir @@ name @! ".zip"
@@ -129,7 +129,8 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         |> addPkg ("tools" ++ version)
 
     let genAppPkg version =
-        [ Text version, "version.txt" ]
+        [ Text version, "version.txt"
+          Text "hello", "docs\\hello.txt" ]
         |> addPkg ("app1" ++ version)
 
 
@@ -301,6 +302,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
 
         appDir @@ "app1-1.0.0-d0-" @@ "result.txt" |> readText |> should equal "1.0.0"
         appDir @@ "app1-1.0.0-d0-" @@ "tools.txt" |> readText |> should equal "1.1"
+        appDir @@ "app1-1.0.0-d0-" @@ "docs" @@ "hello.txt" |> readText |> should equal "hello"
         userPrompts |> should equal 1
         downloads |> Seq.filter ((=) "app1-1.0.0") |> Seq.length |> should equal 1
 

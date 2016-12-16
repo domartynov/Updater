@@ -1,3 +1,8 @@
+#### 0.2.14 - 12/15/2016
+* FIXED: reused main pkg is missing folders shared with secondary pkg
+* added publisher promote
+* added --app-version and --new-manifest parameter to publisher publish
+
 #### 0.2.13 - 12/09/2016
 * FIXED: publisher produces invalid manifest after publishing secondary pkgs with the same main pkg twice
 

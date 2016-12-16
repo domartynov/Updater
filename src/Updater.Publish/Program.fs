@@ -12,6 +12,7 @@ open Updater.Model
 type CliArgs =
     | Repo of string option
     | [<CliPrefix(CliPrefix.None)>] Publish of ParseResults<PublishArgs>
+    | [<CliPrefix(CliPrefix.None)>] Promote of ParseResults<PromoteArgs>
     | [<CliPrefix(CliPrefix.None)>] Cleanup of ParseResults<CleanupArgs>
 with 
     interface IArgParserTemplate with
@@ -19,16 +20,30 @@ with
             match this with
             | Repo _ -> "Repo folder URI, file schema only (i.e. file://<path>)"
             | Publish _ -> "Publish new packages"
+            | Promote _ -> "Promote current version to another repo"
             | Cleanup _ -> "Cleanup old packages"
 and PublishArgs = 
     | Name of string
     | [<MainCommand>] Files of string list
+    | App_Version of string
+    | New_Manifest of string
 with 
     interface IArgParserTemplate with
         member this.Usage = 
             match this with
-            | Name _ -> "Name of the version file (i.e. name1 points to name1.version.json)"
+            | Name _ -> "Name of the version file (i.e. name1 points to name1.version.txt)"
             | Files _ -> "Packages to copy to the repo, add a new manifest file with the packages, update the version file to the new manifest file"
+            | App_Version _ -> "Specify custom app version (by default it's a version of the main package)"
+            | New_Manifest _ -> "Manifest file to override current manifest"
+and PromoteArgs = 
+    | Name of string
+    | [<MainCommand>] From of string
+with 
+    interface IArgParserTemplate with
+        member this.Usage = 
+            match this with
+            | Name _ -> "Name of the version file (i.e. name1 points to name1.version.txt)"
+            | From _ -> "URL to a current version file to promote from"
 and CleanupArgs =
     | Versions of int
 with 
@@ -37,9 +52,11 @@ with
             match this with
             | Versions _ -> "Clean up all manifests and packages older than specified number of versions"
 
+let localPath uri =
+    Uri(uri).LocalPath |> Path.GetFullPath
 
 let locateRepo repoUri =
-    Uri(defaultArg repoUri (Environment.GetEnvironmentVariable "UPDATER_REPO")).LocalPath |> Path.GetFullPath
+    defaultArg repoUri (Environment.GetEnvironmentVariable "UPDATER_REPO") |> localPath
 
 let locateVersion repo (name: string option)= 
     let locate filename = 
@@ -62,12 +79,28 @@ let locatePackage path =
     if not (File.Exists path) then failwithf "Not found package: %s" path
     path
 
-let publish repo versionPath packages = 
-    let manifestPath version =
-        repo @@ version @! ".manifest.json"
-    
+let locateRepoVersion uri =
+    let path = localPath uri
+    if Path.GetExtension(path) = ".txt" && File.Exists path then
+        Path.GetDirectoryName path, path
+    else failwithf "Not found version file: %s" path
+
+let manifestPath repo version =
+    repo @@ version @! ".manifest.json"
+
+let readManifest path =
+    path |> readText |> fromJson<Manifest>
+
+let readCurrentManifest repo versionPath =
     let version = (versionPath |> readText).Trim()
-    let manifest = version |> manifestPath |> readText |> fromJson<Manifest>
+    let manifest = version |> manifestPath repo |> readManifest
+    version, manifest
+        
+let publish repo versionPath packages newAppVersion newManifest = 
+    let version, cm = readCurrentManifest repo versionPath
+    let manifest = match newManifest with
+                   | None -> cm
+                   | Some m -> { m with pkgs = cm.pkgs }
     
     let copyPackage path = 
         let filename = Path.GetFileName path
@@ -114,36 +147,48 @@ let publish repo versionPath packages =
     let newVersion = 
         let seed = pkgs.[manifest.layout.main]
         Seq.initInfinite (function 0 -> seed | i -> sprintf "%s-%d" seed i) // TODO review if still needed
-        |> Seq.filter (not << File.Exists << manifestPath)
+        |> Seq.filter (not << File.Exists << manifestPath repo)
         |> Seq.head
 
-    let mainVersion manifest =
-        let getBaseName = DuplicateName.next >> fst
-        manifest.pkgs.[manifest.layout.main] 
-        |> getBaseName 
-        |> verDelimRegex.Split 
-        |> Seq.skip 1 
-        |> Seq.tryLast
-        |? manifest.app.version
-
-    let updateAppVersion = 
-        if manifest.app.version = (mainVersion manifest) then 
-            fun manifest -> { manifest with app = { manifest.app with version = mainVersion manifest } }
-        else id
+    let updateAppVersion m = 
+        let nv = 
+            match newAppVersion with
+            | Some v -> v
+            | None -> 
+                m.pkgs.[m.layout.main] 
+                |> DuplicateName.baseName 
+                |> verDelimRegex.Split 
+                |> Seq.skip 1 
+                |> Seq.tryLast
+                |? m.app.version
+        
+        if nv = m.app.version then m
+        else { m with app = { m.app with version = nv } }
     
     { manifest with pkgs = pkgs }
     |> updateAppVersion                    
     |> serialize
-    |> save (manifestPath newVersion)
+    |> save (manifestPath repo newVersion)
 
     newVersion |> save versionPath
     0
 
+let promote repo versionPath src = 
+    let _, srcManifest = src ||> readCurrentManifest
+    let packages = srcManifest.pkgs |> Map.toSeq |> Seq.map (fun (name, pkg) -> repo @@ pkg @! ".zip")
+    publish repo versionPath packages (Some srcManifest.app.version) (Some srcManifest)
+
 let execute repo = function
     | Publish args ->
-        let versionPath = args.TryGetResult <@ Name @> |> locateVersion repo
+        let versionPath = args.TryGetResult <@ PublishArgs.Name @> |> locateVersion repo
         let packages = args.PostProcessResult (<@ Files @>, List.map locatePackage)
-        publish repo versionPath packages
+        let newAppVersion = args.TryGetResult <@ App_Version @>
+        let newManifest = args.TryGetResult <@ New_Manifest @> |> Option.map readManifest
+        publish repo versionPath packages newAppVersion newManifest
+    | Promote args ->
+        let versionPath = args.TryGetResult <@ PromoteArgs.Name @> |> locateVersion repo
+        let src = args.GetResult <@ From @> |> locateRepoVersion
+        promote repo versionPath src
     | Cleanup args ->
         failwith "Not implemented: Cleanup"
     | x -> failwithf "Not supported: %A" x

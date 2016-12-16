@@ -15,4 +15,6 @@ type TestDirFixture () =
 
     member self.MakeDir<'T> () = typeof<'T>.Name |> self.MakeDir  
 
+    member self.MakeDirFor (o : obj) = o.GetType().Name |> self.MakeDir
+
     member __.BinDir = binDir
