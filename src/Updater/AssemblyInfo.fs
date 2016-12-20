@@ -5,11 +5,11 @@ open System.Reflection
 [<assembly: AssemblyProductAttribute("Updater")>]
 [<assembly: AssemblyCompanyAttribute("Dzmitry Martynau")>]
 [<assembly: AssemblyDescriptionAttribute("Deploy, update and publish tools for Windows client applications.")>]
-[<assembly: AssemblyVersionAttribute("0.2.14")>]
-[<assembly: AssemblyFileVersionAttribute("0.2.14")>]
-[<assembly: AssemblyInformationalVersionAttribute("0.2.14")>]
+[<assembly: AssemblyVersionAttribute("0.2.15")>]
+[<assembly: AssemblyFileVersionAttribute("0.2.15")>]
+[<assembly: AssemblyInformationalVersionAttribute("0.2.15")>]
 do ()
 
 module internal AssemblyVersionInformation =
-    let [<Literal>] Version = "0.2.14"
-    let [<Literal>] InformationalVersion = "0.2.14"
+    let [<Literal>] Version = "0.2.15"
+    let [<Literal>] InformationalVersion = "0.2.15"

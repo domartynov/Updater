@@ -23,6 +23,7 @@ type UpdaterStep =
     | LaunchVersion of version : string
     | LaunchManifest of manifest : Manifest
     | Update of currentVersion : string option * version : string
+    | CleanUpIfNeeded of currentVersion : string option * version : string
     | CleanUp of currentVersion : string option * version : string
 
 type Updater(config : Config, client : IRepoClient, ui : IUI) as self =    
@@ -331,16 +332,18 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
                 match cm with
                 | None -> upd () 
                 | Some cm when updaterOnly || canSkipConfirmUpdate cm m || ui.ConfirmUpdate() -> upd ()
-                | Some cm -> [LaunchManifest cm]
+                | Some cm -> [ LaunchManifest cm; CleanUpIfNeeded (cv, v) ]
             | Choice2Of2 waitForAnotherUpdater ->
                 ui.ReportWaitForAnotherUpdater()
                 waitForAnotherUpdater()
                 [Entry None] // TODO review
         | LaunchVersion v -> 
-            [v |> manifestPath |> read<Manifest> |> LaunchManifest]
+            [ v |> manifestPath |> read<Manifest> |> LaunchManifest
+              CleanUpIfNeeded (None, v) ]
         | LaunchManifest m -> 
             if not self.SkipLaunch then launchApp m
             []
+        | CleanUpIfNeeded (cv, v) -> [ CleanUp (cv, v) ] // TODO: do if previous failed
         | CleanUp (cv, v) ->
             if not self.SkipCleanUp then
                 Process.GetCurrentProcess().PriorityClass <- ProcessPriorityClass.Idle

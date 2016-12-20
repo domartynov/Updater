@@ -1,3 +1,6 @@
+#### 0.2.15 - 12/20/2016
+* TEMP: cleanup after every launch
+
 #### 0.2.14 - 12/15/2016
 * FIXED: reused main pkg is missing folders shared with secondary pkg
 * added publisher promote
