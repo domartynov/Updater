@@ -173,9 +173,11 @@ let publish repo versionPath packages newAppVersion newManifest =
     newVersion |> save versionPath
     0
 
-let promote repo versionPath src = 
-    let _, srcManifest = src ||> readCurrentManifest
-    let packages = srcManifest.pkgs |> Map.toSeq |> Seq.map (fun (name, pkg) -> repo @@ pkg @! ".zip")
+let promote repo versionPath (srcRepo, srcVersionPath) = 
+    let _, srcManifest = readCurrentManifest srcRepo srcVersionPath
+    let _, manifest = readCurrentManifest repo versionPath
+    let srcManifest = { srcManifest with app = { srcManifest.app with channel = manifest.app.channel } }
+    let packages = srcManifest.pkgs |> Map.toSeq |> Seq.map (fun (name, pkg) -> srcRepo @@ pkg @! ".zip")
     publish repo versionPath packages (Some srcManifest.app.version) (Some srcManifest)
 
 let execute repo = function

@@ -111,6 +111,11 @@ module Fs =
         with 
             | :? IOException as ex when isLockError ex->
                 copyAll src dest
-                
 
+    let deleteFile tmpDir path = 
+        if File.Exists path then File.Delete path 
+        true
 
+    let deleteDir tmpDir path = 
+        if Directory.Exists path then Directory.Delete path
+        true

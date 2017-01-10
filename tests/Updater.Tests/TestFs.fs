@@ -68,6 +68,26 @@ type FsTests (testDirFixture : TestDirFixture) as test =
         |> should equal (Map [ "1.txt", WalkEntry
                                "p", WalkDirEntries  (Map [ "3.txt", WalkEntry ]) 
                                "lib", WalkDirEntries  (Map [ "2.txt", WalkEntry ]) ])
+
+    [<Fact>]
+    let ``deleteFile return true`` () =
+        setupFolder [
+            @"tmp\"
+            @"1.txt"
+        ]
+
+        deleteFile (testDir @@ "tmp") (testDir @@ "1.txt") |> should equal true
+        testDir @@ "1.txt" |> File.Exists |> should equal false
+
+    [<Fact>]
+    let ``deleteDir return true`` () =
+        setupFolder [
+            @"tmp\"
+            @"1\"
+        ]
+
+        deleteDir (testDir @@ "tmp") (testDir @@ "1") |> should equal true
+        testDir @@ "1" |> Directory.Exists |> should equal false
         
     interface IClassFixture<TestDirFixture>
 

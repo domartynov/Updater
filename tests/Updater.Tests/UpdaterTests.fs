@@ -186,7 +186,9 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
             let appDirUri = Uri(if appDir.EndsWith(@"\") then appDir else appDir + @"\")
             if not proc.HasExited then
                 try
-                    Some proc.MainModule.FileName
+                    match proc.MainModule with
+                    | null -> None
+                    | m -> Some m.FileName
                 with :? InvalidOperationException -> None
                 |> function 
                 | Some filename -> let relPath = appDirUri.MakeRelativeUri(filename |> Uri).ToString()

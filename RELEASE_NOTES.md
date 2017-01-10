@@ -1,3 +1,7 @@
+#### 0.2.16 - 01/10/2016
+* FIX: publisher promote should preserve channel
+* FIX: publisher promote should copy pkg files 
+
 #### 0.2.15 - 12/20/2016
 * TEMP: cleanup after every launch
 
