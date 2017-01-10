@@ -126,7 +126,7 @@ let publish repo versionPath packages newAppVersion newManifest =
         |> Seq.map update
         |> Seq.choose (function
             | Choice1Of2 (name, path) -> Some (name, copyPackage path)
-            | Choice2Of2 err -> printf "%s" err; None)
+            | Choice2Of2 err -> printfn "%s" err; None)
         |> Seq.toList
 
     let duplicatedParentPackages = 
@@ -177,7 +177,10 @@ let promote repo versionPath (srcRepo, srcVersionPath) =
     let _, srcManifest = readCurrentManifest srcRepo srcVersionPath
     let _, manifest = readCurrentManifest repo versionPath
     let srcManifest = { srcManifest with app = { srcManifest.app with channel = manifest.app.channel } }
-    let packages = srcManifest.pkgs |> Map.toSeq |> Seq.map (fun (name, pkg) -> srcRepo @@ pkg @! ".zip")
+    let packages = 
+        srcManifest.pkgs 
+        |> Map.toSeq 
+        |> Seq.map (fun (_, pkg) -> srcRepo @@ (DuplicateName.baseName pkg) @! ".zip")
     publish repo versionPath packages (Some srcManifest.app.version) (Some srcManifest)
 
 let execute repo = function
