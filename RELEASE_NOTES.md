@@ -1,3 +1,6 @@
+#### 0.2.18 - 03/14/2017 
+* FIXED: updater fails to cleanup in background because running app locks .exe files
+
 #### 0.2.17 - 01/10/2016
 * FIXED: publisher promote should copy pkg using base name
 

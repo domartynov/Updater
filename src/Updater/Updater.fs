@@ -19,6 +19,7 @@ type CleanItem =
 type UpdaterStep =
     | Entry of launchVersion : string option
     | ForwardUpdater of path : string
+    | CleanUpTmp
     | UpdateOrLaunch of launchVersion : string option
     | LaunchVersion of version : string
     | LaunchManifest of manifest : Manifest
@@ -60,6 +61,8 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
 
     let pkgDir name = 
         config.appDir @@ name
+
+    let tmpDir = config.appDir @@ ".tmp"
 
     let findLatestManifestVersions () =
         DirectoryInfo(config.appDir).GetFiles(manifestName "*")
@@ -184,14 +187,10 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
         startProcess exePath (args @ dbg @ ppid) |> ignore
 
 
-    let cleanUp excludeVersions =
-        let deleteArtifact artifact = 
-            try 
-                match artifact with
-                | CleanDir path -> Directory.Delete(path, true)
-                | CleanFile path -> File.Delete(path)
-                true
-            with _ -> false 
+    let cleanUp tmpDir excludeVersions =
+        let deleteArtifact = function
+            | CleanDir path -> deleteDir tmpDir path
+            | CleanFile path -> deleteFile tmpDir path
 
         [ Directory.EnumerateDirectories(config.appDir, "*~") |> Seq.map CleanDir
           Directory.EnumerateFiles(config.appDir, "*.*~") |> Seq.map CleanFile ]
@@ -287,10 +286,18 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
             if not self.SkipForwardUpdater && File.Exists updaterTxtPath then 
                 match readText updaterTxtPath with
                 | updExePath when updExePath  @<>@ runningExePath () && validNewerUpdater updExePath -> [ForwardUpdater updExePath]
-                | _ -> [UpdateOrLaunch lv]
-            else [UpdateOrLaunch lv]
+                | _ -> [CleanUpTmp; UpdateOrLaunch lv]
+            else [CleanUpTmp; UpdateOrLaunch lv]
         | ForwardUpdater p -> 
             launchUpdaterExe p
+            []
+        | CleanUpTmp ->
+            if Directory.Exists tmpDir then
+                // TODO budget time spent here
+                for p in Directory.GetFiles tmpDir do
+                    try
+                        File.Delete p 
+                    with _ -> ()
             []
         | UpdateOrLaunch lv ->
             let cv = readVersion()
@@ -348,7 +355,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
             if not self.SkipCleanUp then
                 Process.GetCurrentProcess().PriorityClass <- ProcessPriorityClass.Idle
                 v :: (Option.toList cv)
-                |> cleanUp
+                |> cleanUp (makeDir tmpDir)
             []
 
     let rec execute input =

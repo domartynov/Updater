@@ -98,24 +98,52 @@ module Fs =
         if not (Directory.Exists dir) then dir
         else nextTmpDir (dir + "~")
 
+    let rec nextTmpFile path =
+        if not (File.Exists path) then path
+        else nextTmpFile (path + "~")
+
+    let private isLockError (ex: IOException) =
+        match ex.HResult &&& 0x0000FFFF with
+        | 0x0005 -> true // ERROR_ACCESS_DENIED
+        | 0x0010 -> true // ERROR_CURRENT_DIRECTORY
+        | 0x0020 -> true // ERROR_SHARING_VIOLATION
+        | 0x0021 -> true // ERROR_LOCK_VIOLATION
+        | _ -> false
+
     let move src dest =
-        let isLockError (ex: IOException) =
-            match ex.HResult &&& 0x0000FFFF with
-            | 0x0005 -> true // ERROR_ACCESS_DENIED
-            | 0x0010 -> true // ERROR_CURRENT_DIRECTORY
-            | 0x0020 -> true // ERROR_SHARING_VIOLATION
-            | 0x0021 -> true // ERROR_LOCK_VIOLATION
-            | _ -> false
         try
             Directory.Move (src, dest) 
         with 
-            | :? IOException as ex when isLockError ex->
+            | :? IOException as ex when isLockError ex ->
                 copyAll src dest
 
     let deleteFile tmpDir path = 
-        if File.Exists path then File.Delete path 
-        true
+        if File.Exists path then 
+            try
+                File.Delete path 
+                true
+            with 
+                | :? System.UnauthorizedAccessException as ex ->
+                    try
+                        let tmpPath = nextTmpFile (tmpDir @@ Path.GetFileName path)
+                        File.Move(path, tmpPath)
+                        true
+                    with _ -> false
+                | _ -> false
+        else
+            true
 
-    let deleteDir tmpDir path = 
-        if Directory.Exists path then Directory.Delete path
-        true
+    let rec deleteDir tmpDir path = 
+        try
+            if Directory.Exists path then Directory.Delete(path, true)
+            true
+        with _ ->
+            (Directory.EnumerateFiles(path) |> Seq.map (deleteFile tmpDir) |> Seq.fold (&&) true) &&
+            (Directory.EnumerateDirectories(path) |> Seq.map (deleteDir tmpDir) |> Seq.fold (&&) true)
+            |> function
+            | true -> 
+                try
+                    Directory.Delete path
+                    true
+                with _ -> false
+            | _ -> false
