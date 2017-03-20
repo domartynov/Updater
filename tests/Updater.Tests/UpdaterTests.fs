@@ -72,7 +72,8 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
           pkgs = Map.ofList [ for name in pkgNames -> (name, name) ]
           layout = { main = "app1"; deps = [] }
           shortcuts = []
-          launch = { target = ""; args = None; workDir = None; expectExitCodes = Some [ 0 ] } }
+          launch = { target = ""; args = None; workDir = None; expectExitCodes = Some [ 0 ] }
+          actions = None }
 
     let withAppVersion version manifest =
         { manifest with app = { manifest.app with version = version } }
@@ -178,8 +179,8 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
                     proc.WaitForExit() 
                     true
                 else 
-                    proc.WaitForExit(1000)
-            if not exited then proc.Kill()
+                    proc.WaitForExit(2000)
+            if not exited then ignoreExn proc.Kill ()
             exited |> should equal true
 
         let currentTestUpdater (proc : Process) =
@@ -453,6 +454,23 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         appDir @@ "test~" |> Directory.Exists |> should equal false
         appDir @@ "test.txt~" |> File.Exists |> should equal false
 
+    [<Fact>]
+    let ``del cleanup action`` () =
+        { appManifest with actions = Some [ sprintf "del \"%s\"" (userDir @@ "desktop" @@ "${app.title}-*.lnk") ] }
+        //{ appManifest with actions = [ ] }
+        |> publishManifest "template"
+        
+        [ genUpdaterPkg "0.1.0" 
+          genUpdaterConfigPkg "1.0.0" 
+          genToolsPkg "1.0"
+          genAppPkg "1.0.0" ]
+        |> publish |> updateOnly
+
+        updater.SkipCleanUp <- false
+        [ genAppPkg "1.0.1" ] |> publish |> updateOnly
+
+        testDir @@ "user" @@ "desktop" @@ "App1-1.0.0.lnk" |> File.Exists |> should equal false
+        testDir @@ "user" @@ "desktop" @@ "App1-1.0.1.lnk" |> File.Exists |> should equal false
 
     interface IClassFixture<TestDirFixture>
 

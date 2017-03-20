@@ -14,7 +14,8 @@ type Manifest =
       pkgs : Packages
       layout : Layout
       shortcuts : Shortcut list
-      launch : Launch }
+      launch : Launch
+      actions: Action list option}
 and App = 
     { name : string
       title: string
@@ -42,6 +43,7 @@ and Launch =
       args : string option
       workDir: string option
       expectExitCodes: list<int> option }
+and Action = string
 
 type IRepoClient = 
     abstract GetVersion : unit -> string

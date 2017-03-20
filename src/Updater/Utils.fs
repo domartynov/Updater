@@ -20,9 +20,12 @@ let trimEnd suffix (str : string)  =
 let trimStart prefix (str : string) =
     if str.StartsWith(prefix) then str.Substring(prefix.Length) else str
 
-let splitArgs (args : string) = // TODO add regex to handle args in double quotes
-    args.Split(' ')
-    |> Seq.filter (not << String.IsNullOrWhiteSpace)
+let re = lazy System.Text.RegularExpressions.Regex(@"(?<p>[^""\s]+)(\s+|$)|""(?<p>[^""]*)""(\s+|$)")
+
+let splitArgs (args : string) = 
+    re.Value.Matches(args) 
+    |> Seq.cast<System.Text.RegularExpressions.Match> 
+    |> Seq.map (fun m -> m.Groups.["p"].Value) 
     |> Seq.toList
 
 let runningExePath () = 

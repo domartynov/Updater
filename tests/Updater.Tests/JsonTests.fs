@@ -178,4 +178,5 @@ type JsonTests() =
                               { target = "qzpc-0.1\\bin\\pycharm64.exe"
                                 args = None
                                 workDir = None
-                                expectExitCodes = None } }
+                                expectExitCodes = None }
+                          actions = None }

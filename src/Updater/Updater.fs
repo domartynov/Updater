@@ -24,8 +24,8 @@ type UpdaterStep =
     | LaunchVersion of version : string
     | LaunchManifest of manifest : Manifest
     | Update of currentVersion : string option * version : string
-    | CleanUpIfNeeded of currentVersion : string option * version : string
-    | CleanUp of currentVersion : string option * version : string
+    | CleanUpIfNeeded of currentVersion : string option * version : string * actions: Action list option
+    | CleanUp of currentVersion : string option * version : string * actions: Action list option
 
 type Updater(config : Config, client : IRepoClient, ui : IUI) as self =    
     let runningUpdaterVersion () =
@@ -187,15 +187,27 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
         startProcess exePath (args @ dbg @ ppid) |> ignore
 
 
-    let cleanUp tmpDir excludeVersions =
+    let cleanUp tmpDir actions excludeVersions =
         let deleteArtifact = function
             | CleanDir path -> deleteDir tmpDir path
             | CleanFile path -> deleteFile tmpDir path
 
-        [ Directory.EnumerateDirectories(config.appDir, "*~") |> Seq.map CleanDir
-          Directory.EnumerateFiles(config.appDir, "*.*~") |> Seq.map CleanFile ]
-        |> Seq.concat
-        |> Seq.iter (deleteArtifact >> ignore)
+        let deleteTempArtifacts () = 
+            [ Directory.EnumerateDirectories(config.appDir, "*~") |> Seq.map CleanDir
+              Directory.EnumerateFiles(config.appDir, "*.*~") |> Seq.map CleanFile ]
+            |> Seq.concat
+            |> Seq.iter (deleteArtifact >> ignore)
+        deleteTempArtifacts()
+
+        let executeCleanUpActions cleanUpActions =
+            cleanUpActions 
+            |> Seq.iter (function
+                | [ "del"; pattern ] ->
+                    Directory.EnumerateFiles(Path.GetDirectoryName(pattern), Path.GetFileName(pattern)) 
+                    |> Seq.iter (CleanFile >> deleteArtifact >> ignore)
+                | _ -> ()
+            )
+        actions |> Seq.map splitArgs |> executeCleanUpActions |> ignore
 
         let findArtifacts skipUpdaters manifest =
             let updPkgs = if skipUpdaters then updaterPackages manifest else []
@@ -334,28 +346,28 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
                     else  
                         m |> updaterExePath |> infoAs "SaveUpdaterExePath" |> save updaterTxtPath 
                         [ LaunchManifest m
-                          CleanUp (cv, v) ]
+                          CleanUp (cv, v, m.actions) ]
 
                 match cm with
                 | None -> upd () 
                 | Some cm when updaterOnly || canSkipConfirmUpdate cm m || ui.ConfirmUpdate() -> upd ()
-                | Some cm -> [ LaunchManifest cm; CleanUpIfNeeded (cv, v) ]
+                | Some cm -> [ LaunchManifest cm; CleanUpIfNeeded (cv, v, cm.actions) ]
             | Choice2Of2 waitForAnotherUpdater ->
                 ui.ReportWaitForAnotherUpdater()
                 waitForAnotherUpdater()
                 [Entry None] // TODO review
         | LaunchVersion v -> 
-            [ v |> manifestPath |> read<Manifest> |> LaunchManifest
-              CleanUpIfNeeded (None, v) ]
+            let m = v |> manifestPath |> read<Manifest> 
+            [ LaunchManifest m; CleanUpIfNeeded (None, v, m.actions) ]
         | LaunchManifest m -> 
             if not self.SkipLaunch then launchApp m
             []
-        | CleanUpIfNeeded (cv, v) -> [ CleanUp (cv, v) ] // TODO: do if previous failed
-        | CleanUp (cv, v) ->
+        | CleanUpIfNeeded (cv, v, a) -> [ CleanUp (cv, v, a) ] // TODO: do if previous failed
+        | CleanUp (cv, v, actions) ->
             if not self.SkipCleanUp then
                 Process.GetCurrentProcess().PriorityClass <- ProcessPriorityClass.Idle
                 v :: (Option.toList cv)
-                |> cleanUp (makeDir tmpDir)
+                |> cleanUp (makeDir tmpDir) (actions |? List.empty)
             []
 
     let rec execute input =

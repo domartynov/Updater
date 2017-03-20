@@ -1,3 +1,6 @@
+#### 0.2.19 - 03/19/2017
+* TODO: add cleanup actions, e.g. remove files according to a pattern to cleanup icon on Desktop
+
 #### 0.2.18 - 03/14/2017 
 * FIXED: updater fails to cleanup in background because running app locks .exe files
 

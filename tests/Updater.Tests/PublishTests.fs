@@ -29,6 +29,7 @@ type PublishTests (testDirFixture : TestDirFixture) =
               layout = { main = "app1"; deps = [] }
               shortcuts = []
               launch = { target = "${pkgs.app1}\\app.exe"; workDir = None; args = None; expectExitCodes = None } 
+              actions = None
             }
         manifest |> serialize |> save (repoDir @@ "app1-1.0.manifest.json")
         "app1-1.0" |> save versionPath
