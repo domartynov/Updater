@@ -78,7 +78,7 @@ type FsTests (testDirFixture : TestDirFixture) as test =
         setupFolder [ @"tmp\"
                       @"1.txt" ]
 
-        deleteFile (testDir @@ "tmp") (testDir @@ "1.txt") |> should equal true
+        deleteFile (testDir @@ "tmp") ignore (testDir @@ "1.txt") |> should equal true
         testDir @@ "1.txt" |> File.Exists |> should equal false
 
     let setupSomeApp path =
@@ -86,9 +86,22 @@ type FsTests (testDirFixture : TestDirFixture) as test =
         let someAppExe = Directory.EnumerateFiles(someAppBinDir, "SomeApp.exe", SearchOption.AllDirectories) |> Seq.head
         File.Copy(someAppExe, path)
         
-
     [<Fact>]
-    let ``deleteFile moves to tmpDir if file is locked`` () = 
+    let ``deleteFile records a locked file`` () = 
+        setupFolder [ @"a1\1.txt" 
+                      @"a2\"
+                      @"a3\" ]
+        HardLink.createHardLink (testDir @@ @"a2\1.txt") (testDir @@ @"a1\1.txt")
+        HardLink.createHardLink (testDir @@ @"a3\1.txt") (testDir @@ @"a1\1.txt")
+        use s = File.OpenRead(testDir @@ @"a3\1.txt")
+        let locks = ResizeArray<string>()
+        deleteFile (testDir @@ "tmp") locks.Add (testDir @@ @"a1\1.txt") |> should equal false
+        deleteFile (testDir @@ "tmp") locks.Add (testDir @@ @"a2\1.txt") |> should equal false
+
+        locks |> List.ofSeq |> should equal [ (testDir @@ @"a1\1.txt"); (testDir @@ @"a2\1.txt") ]
+        
+    [<Fact>]
+    let ``deleteFile moves executable file to tmpDir if  it's running`` () = 
         setupFolder [ @"tmp\"
                       @"a1\" 
                       @"a2\"
@@ -98,8 +111,8 @@ type FsTests (testDirFixture : TestDirFixture) as test =
         HardLink.createHardLink (testDir @@ @"a3\app.exe") (testDir @@ @"a1\app.exe")
         use p = exec (testDir @@ @"a3\app.exe") 
 
-        deleteFile (testDir @@ "tmp") (testDir @@ @"a1\app.exe") |> should equal true
-        deleteFile (testDir @@ "tmp") (testDir @@ @"a2\app.exe") |> should equal true
+        deleteFile (testDir @@ "tmp") ignore (testDir @@ @"a1\app.exe") |> should equal true
+        deleteFile (testDir @@ "tmp") ignore (testDir @@ @"a2\app.exe") |> should equal true
         testDir @@ @"tmp\app.exe" |> File.Exists |> should equal true
         testDir @@ @"tmp\app.exe~" |> File.Exists |> should equal true
         testDir @@ @"a1\app.exe" |> File.Exists |> should equal false
@@ -112,7 +125,7 @@ type FsTests (testDirFixture : TestDirFixture) as test =
             @"1\"
         ]
 
-        deleteDir (testDir @@ "tmp") (testDir @@ "1") |> should equal true
+        deleteDir (testDir @@ "tmp") ignore (testDir @@ "1") |> should equal true
         testDir @@ "1" |> Directory.Exists |> should equal false
     
     [<Fact>]
@@ -126,9 +139,17 @@ type FsTests (testDirFixture : TestDirFixture) as test =
         HardLink.createHardLink (testDir @@ @"a2\app.exe") (testDir @@ @"a1\app.exe")
         use p = exec (testDir @@ @"a2\app.exe") 
          
-        deleteDir (testDir @@ "tmp") (testDir @@ @"a1\") |> should equal true
+        deleteDir (testDir @@ "tmp") ignore (testDir @@ @"a1\") |> should equal true
         testDir @@ @"tmp\app.exe" |> File.Exists |> should equal true
         testDir @@ @"a1\" |> Directory.Exists |> should equal false
+
+    [<Fact>]
+    let ``test inDir``() =
+        inDir @"c:\" @"c:\1.txt" |> should equal true
+        inDir @"c:\a" @"c:\a\1.txt" |> should equal true
+        inDir @"c:\a" @"c:\a\b\1.txt" |> should equal true
+        inDir @"c:\a" @"c:\b\1.txt" |> should equal false
+        inDir @"c:\a" @"c:\1.txt" |> should equal false
         
         
     interface IClassFixture<TestDirFixture>

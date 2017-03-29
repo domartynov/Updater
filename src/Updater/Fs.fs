@@ -41,6 +41,7 @@ module HardLink =
 
 
 module Fs = 
+    open System
     open System.IO
     open HardLink
 
@@ -117,7 +118,7 @@ module Fs =
             | :? IOException as ex when isLockError ex ->
                 copyAll src dest
 
-    let deleteFile tmpDir path = 
+    let deleteFile tmpDir reportLock path = 
         if File.Exists path then 
             try
                 File.Delete path 
@@ -129,17 +130,20 @@ module Fs =
                         File.Move(path, tmpPath)
                         true
                     with _ -> false
+                | :? System.IO.IOException as ex when isLockError ex ->
+                    reportLock path
+                    false
                 | _ -> false
         else
             true
 
-    let rec deleteDir tmpDir path = 
+    let rec deleteDir tmpDir reportLock path = 
         try
             if Directory.Exists path then Directory.Delete(path, true)
             true
         with _ ->
-            (Directory.EnumerateFiles(path) |> Seq.map (deleteFile tmpDir) |> Seq.fold (&&) true) &&
-            (Directory.EnumerateDirectories(path) |> Seq.map (deleteDir tmpDir) |> Seq.fold (&&) true)
+            (Directory.EnumerateFiles(path) |> Seq.map (deleteFile tmpDir reportLock) |> Seq.fold (&&) true) &&
+            (Directory.EnumerateDirectories(path) |> Seq.map (deleteDir tmpDir reportLock) |> Seq.fold (&&) true)
             |> function
             | true -> 
                 try
@@ -147,3 +151,7 @@ module Fs =
                     true
                 with _ -> false
             | _ -> false
+
+    let inDir (dir: string) path = 
+        let dir = if dir.EndsWith(@"\") then dir else dir + @"\"
+        not <| Uri(dir).MakeRelativeUri(Uri(path)).ToString().StartsWith(@"..")

@@ -6,9 +6,9 @@ open System.Reflection
 [<assembly: AssemblyProductAttribute("Updater")>]
 [<assembly: AssemblyCompanyAttribute("Dzmitry Martynau")>]
 [<assembly: AssemblyDescriptionAttribute("Deploy, update and publish tools for Windows client applications.")>]
-[<assembly: AssemblyVersionAttribute("0.2.19")>]
-[<assembly: AssemblyFileVersionAttribute("0.2.19")>]
-[<assembly: AssemblyInformationalVersionAttribute("0.2.19")>]
+[<assembly: AssemblyVersionAttribute("0.2.20")>]
+[<assembly: AssemblyFileVersionAttribute("0.2.20")>]
+[<assembly: AssemblyInformationalVersionAttribute("0.2.20")>]
 do ()
 
 module internal AssemblyVersionInformation =
@@ -16,6 +16,6 @@ module internal AssemblyVersionInformation =
     let [<Literal>] AssemblyProduct = "Updater"
     let [<Literal>] AssemblyCompany = "Dzmitry Martynau"
     let [<Literal>] AssemblyDescription = "Deploy, update and publish tools for Windows client applications."
-    let [<Literal>] AssemblyVersion = "0.2.19"
-    let [<Literal>] AssemblyFileVersion = "0.2.19"
-    let [<Literal>] AssemblyInformationalVersion = "0.2.19"
+    let [<Literal>] AssemblyVersion = "0.2.20"
+    let [<Literal>] AssemblyFileVersion = "0.2.20"
+    let [<Literal>] AssemblyInformationalVersion = "0.2.20"

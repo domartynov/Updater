@@ -455,8 +455,8 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         appDir @@ "test.txt~" |> File.Exists |> should equal false
 
     [<Fact>]
-    let ``del cleanup action`` () =
-        { appManifest with actions = Some [ sprintf "del \"%s\"" (userDir @@ "desktop" @@ "${app.title}-*.lnk") ] }
+    let ``delLnk cleanup action`` () =
+        { appManifest with actions = Some [ sprintf "delLnk \"%s\"" (userDir @@ "desktop" @@ "${app.title}-*.lnk") ] }
         //{ appManifest with actions = [ ] }
         |> publishManifest "template"
         
@@ -466,11 +466,19 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
           genAppPkg "1.0.0" ]
         |> publish |> updateOnly
 
+        { TargetPath = @"%windir%\system32\notepad.exe"
+          Arguments = ""
+          WorkingDir = ""
+          Description = ""
+          IconLocation = @"%windir%\system32\notepad.exe" }
+        |> createShortcut (testDir @@ "user" @@ "desktop" @@ "App1-1.0.0 TEST.lnk")
+
         updater.SkipCleanUp <- false
         [ genAppPkg "1.0.1" ] |> publish |> updateOnly
 
         testDir @@ "user" @@ "desktop" @@ "App1-1.0.0.lnk" |> File.Exists |> should equal false
         testDir @@ "user" @@ "desktop" @@ "App1-1.0.1.lnk" |> File.Exists |> should equal false
+        testDir @@ "user" @@ "desktop" @@ "App1-1.0.0 TEST.lnk" |> File.Exists |> should equal true
 
     interface IClassFixture<TestDirFixture>
 

@@ -63,6 +63,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
         config.appDir @@ name
 
     let tmpDir = config.appDir @@ ".tmp"
+    let tmpLocks = config.appDir @@ ".tmp.locks"
 
     let findLatestManifestVersions () =
         DirectoryInfo(config.appDir).GetFiles(manifestName "*")
@@ -187,10 +188,12 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
         startProcess exePath (args @ dbg @ ppid) |> ignore
 
 
-    let cleanUp tmpDir actions excludeVersions =
+    let cleanUp tmpDir tmpLocks actions excludeVersions =
+        let locks = ResizeArray<string>()            
+
         let deleteArtifact = function
-            | CleanDir path -> deleteDir tmpDir path
-            | CleanFile path -> deleteFile tmpDir path
+            | CleanDir path -> deleteDir tmpDir locks.Add path
+            | CleanFile path -> deleteFile tmpDir locks.Add path
 
         let deleteTempArtifacts () = 
             [ Directory.EnumerateDirectories(config.appDir, "*~") |> Seq.map CleanDir
@@ -202,8 +205,13 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
         let executeCleanUpActions cleanUpActions =
             cleanUpActions 
             |> Seq.iter (function
-                | [ "del"; pattern ] ->
+                | [ "delLnk"; pattern ] ->
+                    let ownedLnk path =
+                        let {TargetPath = t} = readShortcut path
+                        inDir config.appDir t
+
                     Directory.EnumerateFiles(Path.GetDirectoryName(pattern), Path.GetFileName(pattern)) 
+                    |> Seq.where ownedLnk
                     |> Seq.iter (CleanFile >> deleteArtifact >> ignore)
                 | _ -> ()
             )
@@ -243,6 +251,9 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
         |> Seq.map (fun v -> let path = manifestPath v in 
                              path, path |> read<Manifest> |> findArtifacts (not config.cleanupUpdaters))
         |> Seq.iter deleteArtifactsAndManifest
+
+        if locks.Count > 0 then
+            try File.WriteAllLines(tmpLocks, locks) with ex -> logWarn ex
 
     let updaterExePath m =
         config.appDir @@ m.pkgs.["updater"] @@ self.UpdaterExeName // TODO review
@@ -304,12 +315,17 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
             launchUpdaterExe p
             []
         | CleanUpTmp ->
-            if Directory.Exists tmpDir then
-                // TODO budget time spent here
-                for p in Directory.GetFiles tmpDir do
-                    try
-                        File.Delete p 
-                    with _ -> ()
+            try
+                if File.Exists tmpLocks then 
+                    for p in File.ReadLines tmpLocks do 
+                        deleteFile tmpDir ignore (p |> infoAs "CleanUp locking file") 
+                        |> ignore
+
+                if Directory.Exists tmpDir then
+                    // TODO budget time spent here
+                    for p in Directory.GetFiles tmpDir do
+                        try File.Delete p with _ -> ()
+            with ex -> logWarn ex
             []
         | UpdateOrLaunch lv ->
             let cv = readVersion()
@@ -367,7 +383,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
             if not self.SkipCleanUp then
                 Process.GetCurrentProcess().PriorityClass <- ProcessPriorityClass.Idle
                 v :: (Option.toList cv)
-                |> cleanUp (makeDir tmpDir) (actions |? List.empty)
+                |> cleanUp (makeDir tmpDir) tmpLocks (actions |? List.empty)
             []
 
     let rec execute input =
