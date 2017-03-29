@@ -244,7 +244,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
             |> Seq.filter (not << keepArtifacts.Contains)
             |> Seq.map deleteArtifact 
             |> Seq.fold (&&) true |> function 
-                | true -> manifestPath |> CleanFile |> deleteArtifact |> ignore
+                | true -> manifestPath |> infoAs "Deleting" |> CleanFile |> deleteArtifact |> ignore
                 | _ -> ()
 
         removeVersions 
@@ -252,8 +252,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
                              path, path |> read<Manifest> |> findArtifacts (not config.cleanupUpdaters))
         |> Seq.iter deleteArtifactsAndManifest
 
-        if locks.Count > 0 then
-            try File.WriteAllLines(tmpLocks, locks) with ex -> logWarn ex
+        try File.WriteAllLines(tmpLocks, locks) with ex -> logWarn ex
 
     let updaterExePath m =
         config.appDir @@ m.pkgs.["updater"] @@ self.UpdaterExeName // TODO review
@@ -318,7 +317,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
             try
                 if File.Exists tmpLocks then 
                     for p in File.ReadLines tmpLocks do 
-                        deleteFile tmpDir ignore (p |> infoAs "CleanUp locking file") 
+                        deleteFile tmpDir ignore p
                         |> ignore
 
                 if Directory.Exists tmpDir then

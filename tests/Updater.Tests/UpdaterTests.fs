@@ -11,6 +11,7 @@ open FsUnit.Xunit
 open Updater.Json
 open Updater.Model
 open Updater
+open Fs
 open Updater.RepoClient
 open Updater.WindowsShell
 open Updater.Publish.Program
@@ -187,13 +188,12 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
             let appDirUri = Uri(if appDir.EndsWith(@"\") then appDir else appDir + @"\")
             if not proc.HasExited then
                 try
-                    match proc.MainModule with
+                    proc.MainModule |> function
                     | null -> None
                     | m -> Some m.FileName
                 with :? InvalidOperationException -> None
                 |> function 
-                | Some filename -> let relPath = appDirUri.MakeRelativeUri(filename |> Uri).ToString()
-                                   not (relPath.Contains "..")
+                | Some filename -> inDir appDir filename
                 | None -> false
             else
                 false

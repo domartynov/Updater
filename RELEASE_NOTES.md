@@ -1,3 +1,6 @@
+#### 0.2.21 - 03/28/2017
+* FIXED: empty .tmp.locks after all locks are deleted
+
 #### 0.2.20 - 03/27/2017
 * FIXED: clean up logic to write a list of locked files to delete before launching the app
 * FIXED: replace the del action with delLnk to remove only shortcuts that target inside appDir
