@@ -16,13 +16,14 @@ open Updater.RepoClient
 open Updater.WindowsShell
 open Updater.Publish.Program
 
+[<AutoOpen>]
+module UpdaterTests =
+    type EntryFile =
+        | Path of string
+        | Text of string
 
-type EntryFile =
-    | Path of string
-    | Text of string
-
-type EntryName = string
-type PackageEntry = EntryFile * EntryName
+    type EntryName = string
+    type PackageEntry = EntryFile * EntryName
 
 type UpdaterTests (testDirFixture : TestDirFixture) =
     let binDir = testDirFixture.BinDir
@@ -139,11 +140,13 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
     let mutable userPrompts = 0
     let testUI =
         { new IUI with
+            member __.ReportProgress _ = ignore 
             member __.ConfirmUpdate () = 
                 userPrompts <- userPrompts + 1
                 true 
             member __.ReportError ex = raise ex
             member __.ReportWaitForAnotherUpdater () = () // TODO add to test
+            member __.Run a = Async.RunSynchronously a; 0
         }
 
     let downloads = ResizeArray<string>()
@@ -157,7 +160,7 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
                 inner.DownloadPackage(name, path, progress)
         }
 
-    let updater = Updater(config, client, testUI, Args="--test-mode --skip-cleanup", SkipForwardUpdater=true, SkipCleanUp=true)
+    let mutable updater = Updater(config, client, testUI, Args="--test-mode --skip-cleanup", SkipForwardUpdater=true, SkipCleanUp=true)
 
     let publishV1 () =
         appManifest |> publishManifest "template"
@@ -231,6 +234,42 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         |> publish
 
         updater |> execute
+
+        appDir @@ "app1-1.0.0" @@ "result.txt" |> readText |> should equal "1.0.0"
+        appDir @@ "app1-1.0.0" @@ "tools.txt" |> readText |> should equal "1.0"
+        appDir @@ "updater-0.1.0" @@ "updater.txt" |> readText |> should equal "0.1.0"
+        appDir @@ "updater-0.1.0" @@ "updater-config.txt" |> readText |> should equal "1.0.0"
+
+        match appDir @@ "app1-1.0.0.manifest.json" |> read<Manifest> with
+        | { shortcuts = [ { parentDir = Some parentDir; name = name } ]; launch = { target = target } } -> 
+            let { IconLocation=icon } = parentDir @@ name @! ".lnk" |> readShortcut
+            icon |> should equal (appDir @@ target + ",0")
+        | _ -> failwith "Unexpected manifest file"
+
+    let startUpdaterExe args =
+        let debugging = System.Diagnostics.Debugger.IsAttached 
+        let dbg = if debugging then ["--attach-debugger"] else []
+        let args = args @ dbg
+        let arg = String.Join(" ", args |> Seq.filter (not << String.IsNullOrWhiteSpace))
+
+        serialize config |> save (binDir @@ "config.json")
+        let p = ProcessStartInfo(binDir @@ "Updater.exe" , arg, UseShellExecute=false) |> Process.Start 
+        if p.WaitForExit (if debugging then 120000 else 10000) then
+            p.ExitCode
+        else 
+            p.Kill()
+            1
+
+    [<Fact>]
+    let ``install updater, updater-config, tool and app WITH UI`` () =
+        appManifest |> publishManifest "template"
+        [ genUpdaterPkg "0.1.0" 
+          genUpdaterConfigPkg "1.0.0" 
+          genToolsPkg "1.0"
+          genAppPkg "1.0.0" ]
+        |> publish
+
+        startUpdaterExe ["--test-slow-mode"; "--skip-prompt"; "--skip-cleanup"; "--skip-fwd-updater"] |> should equal 0
 
         appDir @@ "app1-1.0.0" @@ "result.txt" |> readText |> should equal "1.0.0"
         appDir @@ "app1-1.0.0" @@ "tools.txt" |> readText |> should equal "1.0"

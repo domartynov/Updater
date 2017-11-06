@@ -1,3 +1,6 @@
+#### 0.2.22 - 11/06/2017
+* ADDED: UI
+
 #### 0.2.21 - 03/28/2017
 * FIXED: empty .tmp.locks after all locks are deleted
 

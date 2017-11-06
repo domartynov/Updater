@@ -1,5 +1,7 @@
 ﻿namespace Updater.Model
 
+open Updater
+
 type Config = 
     { appUid : string option
       appName : string
@@ -45,16 +47,21 @@ and Launch =
       expectExitCodes: list<int> option }
 and Action = string
 
+type IProgressTracker =
+    abstract Value : float
+
 type IRepoClient = 
     abstract GetVersion : unit -> string
     abstract GetManifest : version:string -> string
     abstract DownloadPackage : name:string * path:string * progress:Progress -> Async<unit>
-and Progress = int * int -> unit
+and Progress = int -> int -> unit
 
 type IUI =
     abstract ConfirmUpdate: unit -> bool
     abstract ReportError: exn -> unit
+    abstract ReportProgress: IProgressTracker -> (unit -> unit)
     abstract ReportWaitForAnotherUpdater: unit -> unit
+    abstract Run: Async<unit> -> int
 
 [<RequireQualifiedAccess>]
 module DuplicateName =

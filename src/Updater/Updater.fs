@@ -98,12 +98,16 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
 
     let copy = Fs.copy ignore
     
-    let downloadPackages currentManifest { pkgs = pkgs; layout = layout } = 
+    let downloadPackages pt currentManifest { pkgs = pkgs; layout = layout } = 
+        let reportProgress expand advance = 
+            if expand > 0 then pt |> ProgressTracker.expand expand
+            if advance > 0 then pt |> ProgressTracker.advance advance
+        
         let download baseName name =
             let dest = pkgDir name
             if not (Directory.Exists dest) then
                 let tmp = nextTmpDir (dest + "~")
-                client.DownloadPackage(baseName, tmp, ignore) |> Async.RunSynchronously
+                client.DownloadPackage(baseName, tmp, reportProgress) |> Async.RunSynchronously
                 move tmp dest 
 
         let (curPkgs, curLayout) = 
@@ -136,14 +140,14 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
             | _, (baseName, _) ->
                 download baseName name
                 Some pkg
+
+        pt |> ProgressTracker.expand pkgs.Count
         pkgs
         |> Map.toSeq
-        |> Seq.choose downloadOrReuse
+        |> Seq.choose (downloadOrReuse >> ProgressTracker.retDone pt)
         |> Seq.toList
     
-    let layout manifest newPkgs =
-        let { pkgs = pkgs; layout = layout } = manifest
-        
+    let layout pt ({ pkgs = pkgs; layout = layout } as manifest) newPkgs =
         let pkgPath pkg relativePath = 
             match relativePath with
             | Some path -> (pkgs.[pkg] |> pkgDir) @@ path
@@ -156,7 +160,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
         layout.deps
         |> Seq.groupBy (fun d -> d.parent |? layout.main)
         |> Seq.filter (fun (parent, _) -> List.contains parent newPkgs)
-        |> Seq.iter layoutGroup
+        |> ProgressTracker.iter pt layoutGroup
         manifest
 
     let desktopLocation = lazy (Environment.GetFolderPath Environment.SpecialFolder.DesktopDirectory)
@@ -176,7 +180,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
         
         shortcuts |> Seq.iter create
 
-    let launchUpdaterExe exePath  =
+    let launchUpdaterExe exePath =
         let startProcess path args =
             let arg = String.Join(" ", args |> Seq.filter (not << String.IsNullOrWhiteSpace))
             ProcessStartInfo(path |> infoAs (sprintf "LaunchUpdater: \"%s\"" arg), arg, UseShellExecute=false) 
@@ -186,7 +190,6 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
         let dbg = if System.Diagnostics.Debugger.IsAttached then ["--attach-debugger"] else []
         let ppid = ["--ppid"; Process.GetCurrentProcess().Id |> string]
         startProcess exePath (args @ dbg @ ppid) |> ignore
-
 
     let cleanUp tmpDir tmpLocks actions excludeVersions =
         let locks = ResizeArray<string>()            
@@ -303,6 +306,19 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
         File.Exists (updDir @@ "config.json") &&
         (updDir |> Path.GetFileName |> parseUpdaterVersion) > self.UpdaterVersion
 
+    let cleanUpTmp () = 
+        try
+            if File.Exists tmpLocks then 
+                for p in File.ReadLines tmpLocks do 
+                    deleteFile tmpDir ignore p
+                    |> ignore
+
+            if Directory.Exists tmpDir then
+                // TODO budget time spent here
+                for p in Directory.GetFiles tmpDir do
+                    try File.Delete p with _ -> ()
+        with ex -> logWarn ex
+
     let executeStep = function
         | Entry lv -> 
             if not self.SkipForwardUpdater && File.Exists updaterTxtPath then 
@@ -314,17 +330,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
             launchUpdaterExe p
             []
         | CleanUpTmp ->
-            try
-                if File.Exists tmpLocks then 
-                    for p in File.ReadLines tmpLocks do 
-                        deleteFile tmpDir ignore p
-                        |> ignore
-
-                if Directory.Exists tmpDir then
-                    // TODO budget time spent here
-                    for p in Directory.GetFiles tmpDir do
-                        try File.Delete p with _ -> ()
-            with ex -> logWarn ex
+            cleanUpTmp ()
             []
         | UpdateOrLaunch lv ->
             let cv = readVersion()
@@ -345,9 +351,16 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
                 let updaterOnly, v, m = updateUpdater cm m cv v
 
                 let upd () = 
+                    let pt = ProgressTracker()
+                    let updateProgress = ui.ReportProgress pt
+                    let retUpdateProgress v = updateProgress(); v
+                        
                     m
-                    |> downloadPackages cm
-                    |> layout m
+                    |> downloadPackages pt cm
+                    |> retUpdateProgress
+                    |> layout pt m
+                    |> ProgressTracker.retDone pt
+                    |> retUpdateProgress
                     |> if not updaterOnly then createShortcuts else ignore 
 
                     if updaterOnly then 
@@ -365,7 +378,7 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
 
                 match cm with
                 | None -> upd () 
-                | Some cm when updaterOnly || canSkipConfirmUpdate cm m || ui.ConfirmUpdate() -> upd ()
+                | Some cm when updaterOnly || canSkipConfirmUpdate cm m || self.SkipPrompt || ui.ConfirmUpdate() -> upd ()
                 | Some cm -> [ LaunchManifest cm; CleanUpIfNeeded (cv, v, cm.actions) ]
             | Choice2Of2 waitForAnotherUpdater ->
                 ui.ReportWaitForAnotherUpdater()
@@ -396,7 +409,8 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
     member val Args: String = "" with get, set
     member val SkipForwardUpdater = false with get, set
     member val SkipCleanUp = false with get, set
+    member val SkipPrompt = false with get, set
     member val UpdaterVersion = runningUpdaterVersion () |> infoAs "UpdaterVersion" with get, set
 
-    member self.Execute (launchVersion: string option) =
+    member __.Execute (launchVersion: string option) =
         Entry launchVersion |> execute |> ignore

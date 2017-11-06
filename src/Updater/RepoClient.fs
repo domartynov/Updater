@@ -26,7 +26,7 @@ let repoClient (repoUrl : string) (versionUrl : string) =
             member __.DownloadPackage(name, path, progress) = 
                 async {
                     ZipFile.ExtractToDirectory(rootPath @@ name @! ".zip" |> infoAs "DownloadPackage", path)
-                    progress(1, 1)
+                    progress 1 1
                 }
         }
     | "http" | "https" -> 
@@ -43,7 +43,7 @@ let repoClient (repoUrl : string) (versionUrl : string) =
                     use stream = http.OpenRead(sprintf "%O%s.zip" rootUri name |> infoAs "DownloadPackage")
                     use archive = new ZipArchive(stream)
                     archive.ExtractToDirectory(path)
-                    progress(1, 1)
+                    progress 1 1
                 }
         }
     | _ -> 

@@ -73,6 +73,7 @@
     <Compile Include="RepoClientTests.fs" />
     <Compile Include="PublishTests.fs" />
     <Compile Include="WindowsShellTests.fs" />
+    <Compile Include="ProgressTests.fs" />
     <Content Include="App.config" />
     <None Include="paket.references" />
   </ItemGroup>

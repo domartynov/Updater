@@ -8,11 +8,12 @@ let (|?) = defaultArg
 
 let iff cond f g = if cond then f else g
 
-
 let ignoreExn f x =
     try
         f x
     with _ -> ()
+
+let ignore2 _ _ = ()
 
 let trimEnd suffix (str : string)  =
     if str.EndsWith(suffix) then str.Substring(0, str.Length - suffix.Length) else str

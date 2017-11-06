@@ -88,7 +88,7 @@ type HttpRepoClientTests (server : HttpRepoFixture) =
         addTestPkg ()
 
         let appDir = server.RepoDir @@ "..\\app1" |> Path.GetFullPath
-        client.DownloadPackage("app1-1", appDir @@ "app1-1", ignore) |> Async.RunSynchronously
+        client.DownloadPackage("app1-1", appDir @@ "app1-1", ignore2) |> Async.RunSynchronously
         appDir @@ "app1-1\\file.txt" |> readText |> should equal "test\r\n"   
 
     interface IClassFixture<HttpRepoFixture>
