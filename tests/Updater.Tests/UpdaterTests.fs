@@ -8,10 +8,10 @@ open System.Diagnostics
 open Xunit
 open FsUnit.Xunit
 
-open Updater.Json
-open Updater.Model
 open Updater
 open Fs
+open Updater.Json
+open Updater.Model
 open Updater.RepoClient
 open Updater.WindowsShell
 open Updater.Publish.Program
@@ -247,18 +247,18 @@ type UpdaterTests (testDirFixture : TestDirFixture) =
         | _ -> failwith "Unexpected manifest file"
 
     let startUpdaterExe args =
-        let debugging = System.Diagnostics.Debugger.IsAttached 
+        let debugging = Debugger.IsAttached 
         let dbg = if debugging then ["--attach-debugger"] else []
         let args = args @ dbg
         let arg = String.Join(" ", args |> Seq.filter (not << String.IsNullOrWhiteSpace))
 
         serialize config |> save (binDir @@ "config.json")
         let p = ProcessStartInfo(binDir @@ "Updater.exe" , arg, UseShellExecute=false) |> Process.Start 
-        if p.WaitForExit (if debugging then 120000 else 10000) then
+        if p.WaitForExit (if debugging then 120000 else 20000) then
             p.ExitCode
         else 
             p.Kill()
-            1
+            999
 
     [<Fact>]
     let ``install updater, updater-config, tool and app WITH UI`` () =

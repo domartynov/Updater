@@ -32,7 +32,7 @@ let testUI () =
 let testSlowRepoClient (client: IRepoClient) = 
     { new IRepoClient with
           member __.DownloadPackage(name, path, progress) = 
-            System.Threading.Thread.Sleep(2000)
+            System.Threading.Thread.Sleep(500)
             client.DownloadPackage(name, path, progress)
           member __.GetManifest(version) = client.GetManifest(version)
           member __.GetVersion() = client.GetVersion() }

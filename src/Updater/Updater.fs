@@ -260,32 +260,27 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
     let updaterExePath m =
         config.appDir @@ m.pkgs.["updater"] @@ self.UpdaterExeName // TODO review
 
-    let updateUpdater  (cm : Manifest option) m cv v = 
-        match cm, m with
-        | None, m -> false, v, m
-        | Some cm, m ->
-            match (updaterPackages cm), (updaterPackages m) with
-            | _, [] -> false, v, m
-            | curUpdaterPkgs, updaterPkgs when curUpdaterPkgs = updaterPkgs  -> false, v, m
-            | curUpdaterPkgs, updaterPkgs -> 
-                let pkgs = Map.toSeq cm.pkgs 
-                            |> Seq.except curUpdaterPkgs 
-                            |> Seq.append updaterPkgs |> Map
-                let deps =
-                    List.filter (not << isUpdaterDep) cm.layout.deps @
-                    List.filter isUpdaterDep m.layout.deps
-                let updaterSuffix = updaterPkgs |> List.tryFind (fun (pkg, _) -> pkg = "updater") |> function
+    let updateUpdater cm m cv v = 
+        match (updaterPackages cm), (updaterPackages m) with
+        | _, [] -> false, v, m
+        | curUpdaterPkgs, updaterPkgs when curUpdaterPkgs = updaterPkgs  -> false, v, m
+        | curUpdaterPkgs, updaterPkgs -> 
+            let pkgs = Map.toSeq cm.pkgs 
+                        |> Seq.except curUpdaterPkgs 
+                        |> Seq.append updaterPkgs |> Map
+            let deps =
+                List.filter (not << isUpdaterDep) cm.layout.deps @
+                List.filter isUpdaterDep m.layout.deps
+            let updaterSuffix = updaterPkgs |> List.tryFind (fun (pkg, _) -> pkg = "updater") |> function
+                                | Some (pkg, name) -> trimStart pkg name
+                                | _ -> 
+                                    updaterPkgs |> List.tryHead  |> function
                                     | Some (pkg, name) -> trimStart pkg name
-                                    | _ -> 
-                                        updaterPkgs |> List.tryHead  |> function
-                                        | Some (pkg, name) -> trimStart pkg name
-                                        | _ -> ""
-                let partialVersion = sprintf "%s-p%s"  (cv |? v) updaterSuffix
-                let partialManifest = { cm with pkgs = pkgs 
-                                                layout = { cm.layout with deps = deps } 
-                                                shortcuts = []
-                                                launch =     { target = ""; args = None; workDir = None; expectExitCodes = None } }
-                true, partialVersion, partialManifest 
+                                    | _ -> ""
+            let partialVersion = sprintf "%s-p%s" cv updaterSuffix
+            let partialManifest = { cm with pkgs = pkgs 
+                                            layout = { cm.layout with deps = deps } }
+            true, partialVersion, partialManifest 
 
     let canSkipConfirmUpdate cm m =
         let confirmBaseNames m =
@@ -341,14 +336,18 @@ type Updater(config : Config, client : IRepoClient, ui : IUI) as self =
             | _, Some cv when cv = v -> [LaunchVersion cv]
             | _, cv -> [Update (cv, v)]
         | Update (cv, v) -> 
-            match ExcusiveLock.lockOrWait (sprintf "Global\updater_%s" (config.appUid |? config.appName)) with
+            match ExcusiveLock.lockOrWait (sprintf "Global\\updater_%s" (config.appUid |? config.appName)) with
             | Choice1Of2 lock ->
                 use x = lock
                 let json = client.GetManifest(v)
                 let m = deserialize<Manifest> (v |> manifestPath |> pathVars) json
-                let cm = cv |> Option.map (manifestPath >> read<Manifest>)
-        
-                let updaterOnly, v, m = updateUpdater cm m cv v
+                let updaterOnly, v, m, cm = 
+                    match cv with
+                    | None -> false, v, m, None
+                    | Some cv ->
+                        let cmJson = cv |> manifestPath |> readText
+                        let updaterOnly, v, m = updateUpdater (fromJson<Manifest> cmJson) m cv v
+                        updaterOnly, v, m, Some (deserialize<Manifest> (cv |> manifestPath |> pathVars) cmJson)
 
                 let upd () = 
                     let pt = ProgressTracker()

@@ -1,3 +1,6 @@
+#### 0.2.23 - 11/08/2017
+* FIXED: fails to launch after updater update when app update is rejected  
+
 #### 0.2.22 - 11/06/2017
 * ADDED: UI
 
